@@ -1,6 +1,6 @@
 import type { RoutingReleaseSnapshot } from '@winsendotai/ovo-contracts';
 import type { SimulationRun } from '../simulate/index.ts';
-import type { EngineName, FallbackStepName } from '../wire/index.ts';
+import { FALLBACK_STEPS, type EngineName, type FallbackStepName } from './types.ts';
 
 /** One engine verdict of a run, as the scorer reads it. */
 export interface NodeVerdict {
@@ -33,19 +33,6 @@ export interface CaseActual {
 }
 
 /**
- * Severity of the fallback steps, shallowest first. `limit` is the router giving up on a slow or
- * long route, so it outranks the release default that always follows it.
- */
-const DEPTH: readonly FallbackStepName[] = [
-  'default',
-  'human',
-  'callback',
-  'end',
-  'release_default',
-  'limit',
-];
-
-/**
  * The deepest step that decided the route: a step that was taken, or the release default even when
  * it failed (the chain was exhausted). Skipped and failed steps before it do not count; re-asks
  * and a branch target that failed (`target`) are not fallback steps.
@@ -53,10 +40,10 @@ const DEPTH: readonly FallbackStepName[] = [
 function deepest(steps: readonly { step: string; result: string }[]): CaseActual['fallback'] {
   let best = -1;
   for (const { step, result } of steps) {
-    const depth = DEPTH.indexOf(step as FallbackStepName);
+    const depth = FALLBACK_STEPS.indexOf(step as FallbackStepName);
     if (depth > best && (result === 'taken' || step === 'release_default')) best = depth;
   }
-  return best < 0 ? 'none' : DEPTH[best]!;
+  return best < 0 ? 'none' : FALLBACK_STEPS[best]!;
 }
 
 export function actualOf(run: SimulationRun, snapshot: RoutingReleaseSnapshot): CaseActual {

@@ -1,10 +1,8 @@
 import type { RoutingReleaseSnapshot } from '@winsendotai/ovo-contracts';
 import { simulateRoute, SimulationInputError, type SimulateInput } from '../simulate/index.ts';
 import {
-  FALLBACK_STEPS,
   ROUTING_EVAL_LIMITS,
   ROUTING_SCORECARD_SCHEMA,
-  type FallbackStepName,
   type Rate,
   type RoutingEvalCase,
   type RoutingScorecard,
@@ -12,6 +10,7 @@ import {
 import { actualOf, blankActual, type CaseActual } from './actual.ts';
 import { checkCase, FIELDS, type CaseCheck } from './check.ts';
 import { routingCorpusDigest, routingSnapshotDigest } from './digest.ts';
+import { FALLBACK_STEPS, type FallbackStepName } from './types.ts';
 import {
   calibrationOf,
   confusionOf,

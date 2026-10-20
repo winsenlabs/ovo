@@ -1,4 +1,5 @@
-import type { EngineCounts, EngineName, Rate, RoutingScorecard } from '../wire/index.ts';
+import type { Rate, RoutingScorecard } from '../wire/index.ts';
+import type { EngineCounts, EngineName } from './types.ts';
 import type { CaseActual, NodeVerdict } from './actual.ts';
 
 export const ENGINES: readonly EngineName[] = ['rules', 'decision', 'llm', 'external', 'context'];

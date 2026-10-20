@@ -12,16 +12,6 @@ export const ROUTING_EVAL_LIMITS = Object.freeze({
   failures: 50,
 });
 
-export const FALLBACK_STEPS = [
-  'default',
-  'human',
-  'callback',
-  'end',
-  'limit',
-  'release_default',
-] as const;
-export type FallbackStepName = (typeof FALLBACK_STEPS)[number];
-
 export const RoutingEvalExpect = z
   .object({
     status: z.enum(['agent', 'queue', 'human', 'end', 'callback']).optional(),
@@ -39,13 +29,14 @@ export const RoutingEvalExpect = z
     queue: RoutingKey.optional(),
     language: RouteLanguage.optional(),
     /** The deepest fallback step expected; `none` = a clean route with no fallback. */
-    fallback: z.enum(['none', ...FALLBACK_STEPS]).optional(),
+    fallback: z
+      .enum(['none', 'default', 'human', 'callback', 'end', 'limit', 'release_default'])
+      .optional(),
     /** Whether the router should ask a clarifying question (a reask) at least once. */
     clarify: z.boolean().optional(),
   })
   .strict()
   .refine((expect) => Object.keys(expect).length > 0, 'A case expects something');
-export type RoutingEvalExpect = z.infer<typeof RoutingEvalExpect>;
 
 export const RoutingEvalCase = z
   .object({
@@ -67,8 +58,8 @@ export interface Rate {
   total: number;
   rate: number | null;
 }
-export type EngineName = 'rules' | 'decision' | 'llm' | 'external' | 'context';
-export interface EngineCounts {
+type EngineName = 'rules' | 'decision' | 'llm' | 'external' | 'context';
+interface EngineCounts {
   attempts: number;
   matched: number;
   no_match: number;
@@ -97,7 +88,11 @@ export interface RoutingScorecard {
     queue: Rate;
     language: Rate;
   };
-  fallbackRate: Rate & { byStep: Partial<Record<FallbackStepName, number>> };
+  fallbackRate: Rate & {
+    byStep: Partial<
+      Record<'default' | 'human' | 'callback' | 'end' | 'limit' | 'release_default', number>
+    >;
+  };
   /** Cases with at least one reask taken. */
   clarifyRate: Rate;
   /** Cases that ended in an end or undecided. */

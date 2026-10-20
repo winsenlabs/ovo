@@ -1,4 +1,4 @@
-import type { RoutingEvalExpect } from '../wire/index.ts';
+import type { RoutingEvalExpect } from './types.ts';
 import type { CaseActual } from './actual.ts';
 
 export const FIELDS = [

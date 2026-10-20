@@ -22,7 +22,7 @@ const openAi: InferenceFactory = (apiKey, model) => {
 /**
  * `--live llm --llm-model <id> --keys <file>`: the LLM classifier runs against the real model, so
  * the scorecard measures the model as well as the tree. The key is `OPENAI_API_KEY` in the keys
- * file (or `OVO_EVAL_OPENAI_API_KEY` in the environment). Decision and external engines cannot be
+ * file (or that name with `OVO_EVAL_` before it, in the environment). Decision and external engines cannot be
  * run from the CLI: they need the release's decision service and webhook secrets.
  */
 export async function liveSetup(
@@ -45,7 +45,7 @@ export async function liveSetup(
   const key = (await readKeys(options.keys)).OPENAI_API_KEY;
   if (!key)
     throw new Error(
-      '--live llm needs OPENAI_API_KEY in the --keys file (or OVO_EVAL_OPENAI_API_KEY)',
+      '--live llm needs OPENAI_API_KEY in the --keys file (or OVO_EVAL_ before that name in the environment)',
     );
   const inference = factory(key, options.model);
   return {
