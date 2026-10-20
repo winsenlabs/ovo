@@ -9,9 +9,9 @@ import {
 } from '../../../components/routing/fields';
 import { IssueList } from '../../../components/routing/issue-list';
 import { InlineAlert } from '../../../components/ui/feedback-v2';
-import { issuesAt } from '../../../lib/derive/routing-anchor';
+import { issuesAt } from '../../../lib/derive/routing-issue-index';
 import { blankFallback, blankTarget } from '../../../lib/derive/routing-defaults';
-import { moveStep, removeStep } from '../../../lib/derive/routing-edit';
+import { moveItem, removeItem } from '../../../lib/derive/list-edit';
 import { chainIsTerminal, FALLBACK_LABEL } from '../../../lib/derive/routing-labels';
 import { useDesigner } from './designer-context';
 import { TargetEditor } from './target-editor';
@@ -174,7 +174,7 @@ export function FallbackEditor({
                   className="text-button"
                   aria-label={`Move fallback step ${s + 1} up`}
                   disabled={s === 0}
-                  onClick={() => set(moveStep(node.fallback, s, -1))}
+                  onClick={() => set(moveItem(node.fallback, s, -1))}
                 >
                   Up
                 </button>
@@ -183,7 +183,7 @@ export function FallbackEditor({
                   className="text-button"
                   aria-label={`Move fallback step ${s + 1} down`}
                   disabled={s === node.fallback.length - 1}
-                  onClick={() => set(moveStep(node.fallback, s, 1))}
+                  onClick={() => set(moveItem(node.fallback, s, 1))}
                 >
                   Down
                 </button>
@@ -192,7 +192,7 @@ export function FallbackEditor({
                   className="text-button"
                   aria-label={`Remove fallback step ${s + 1}`}
                   disabled={node.fallback.length <= 1}
-                  onClick={() => set(removeStep(node.fallback, s, 1))}
+                  onClick={() => set(removeItem(node.fallback, s, 1))}
                 >
                   Remove
                 </button>

@@ -113,6 +113,13 @@ describe('deleteNode', () => {
 });
 
 describe('addNode and blankRoutingNode', () => {
+  it('refuses a node past the limit of a point', () => {
+    let full = linked();
+    while (full.nodes.length < 100)
+      full = ok(addNode(full, blankRoutingNode(full, `n${full.nodes.length}`)));
+    expect(err(addNode(full, blankRoutingNode(full, 'extra'))).code).toBe('node_limit');
+  });
+
   it('appends or inserts a node', () => {
     const base = linked();
     expect(ok(addNode(base, blankRoutingNode(base, 'extra'))).nodes.map((n) => n.id)).toEqual([

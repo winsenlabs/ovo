@@ -14,12 +14,7 @@ import {
 import { isOpen } from '@winsendotai/ovo-plugin-router';
 import { releaseResolver } from '../routing-publish-resolve.ts';
 import { poolOr404 } from './routing-pools.ts';
-import {
-  routed,
-  sendError,
-  type RoutingR4Dependencies,
-  type RoutingRouteDependencies,
-} from './routing-support.ts';
+import { routed, sendError, type RoutingR4Dependencies, withinRate } from './routing-support.ts';
 
 /** A release the pool's member has no published release for; the explanation never reads it. */
 const NO_RELEASE = '00000000-0000-4000-8000-000000000000';
@@ -152,11 +147,12 @@ export function registerRoutingUtilisationRoutes(input: RoutingR4Dependencies): 
   registerExplain(input);
 }
 
-function registerExplain(input: RoutingRouteDependencies): void {
+function registerExplain(input: RoutingR4Dependencies): void {
   const now = () => (input.clock ?? Date.now)();
   input.app.post(
     '/v1/routing/pools/explain',
     routed(input, 'viewer', async ({ request, reply, principal, routing }) => {
+      if (!withinRate(reply, input.limiter, principal)) return;
       const parsed = ExplainBody.safeParse(request.body ?? {});
       if (!parsed.success)
         return sendError(

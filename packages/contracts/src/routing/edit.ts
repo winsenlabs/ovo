@@ -1,4 +1,4 @@
-import { RoutingKey } from './ids.ts';
+import { ROUTING_LIMITS, RoutingKey } from './ids.ts';
 import { RoutingNode } from './tree.ts';
 import type { RoutingPointDraft } from './point.ts';
 import type { RoutingPath } from './tree.ts';
@@ -11,6 +11,7 @@ export type RoutingEditErrorCode =
   | 'invalid_id'
   | 'node_unknown'
   | 'node_exists'
+  | 'node_limit'
   | 'root_delete'
   | 'node_referenced'
   | 'branch_unknown'
@@ -136,6 +137,8 @@ export function addNode(
     return fail('invalid_id', `${node.id} is not a valid node id (lowercase, digits, - and _)`);
   if (draft.nodes.some((candidate) => candidate.id === node.id))
     return fail('node_exists', `Node ${node.id} already exists`);
+  if (draft.nodes.length >= ROUTING_LIMITS.nodes)
+    return fail('node_limit', `A point has at most ${ROUTING_LIMITS.nodes} nodes`);
   const next = structuredClone(draft);
   const at = options.after === undefined ? -1 : next.nodes.findIndex((n) => n.id === options.after);
   if (options.after !== undefined && at < 0)

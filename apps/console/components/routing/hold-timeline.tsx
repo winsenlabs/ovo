@@ -1,5 +1,5 @@
+import { holdTimeline } from '@winsendotai/ovo-contracts';
 import type { HoldPolicy } from '../../lib/types/queues';
-import { holdTimeline } from '../../lib/derive/routing-hold';
 
 const KIND_LABEL = { clip: 'Clip', silence: 'Silence', line: 'Spoken line' } as const;
 
@@ -52,7 +52,7 @@ export function HoldTimeline({
                 <td>{s.toS} s</td>
                 <td>
                   {KIND_LABEL[s.kind]}
-                  {s.label.includes('unknown') ? ' (length unknown)' : ''}
+                  {s.lengthUnknown ? ' (length unknown)' : ''}
                 </td>
                 <td>{s.loop + 1}</td>
               </tr>

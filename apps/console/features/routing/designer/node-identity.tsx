@@ -1,17 +1,12 @@
 'use client';
-import type { RoutingNode } from '@winsendotai/ovo-contracts';
+import { deleteNode, renameNode, type RoutingNode } from '@winsendotai/ovo-contracts';
 import { useState } from 'react';
 import { LinesEditor } from '../../../components/routing/lines-editor';
 import { SwitchField, TextField } from '../../../components/routing/fields';
 import { IssueList } from '../../../components/routing/issue-list';
 import { InlineAlert } from '../../../components/ui/feedback-v2';
-import { issuesAt } from '../../../lib/derive/routing-anchor';
-import {
-  deleteNode,
-  referencesTo,
-  renameNode,
-  replaceNode,
-} from '../../../lib/derive/routing-edit';
+import { issuesAt } from '../../../lib/derive/routing-issue-index';
+import { editErrorMessage, referrersOf, replaceNode } from '../../../lib/derive/routing-draft-edit';
 import { useDesigner } from './designer-context';
 
 /** Name, role in the tree, the question asked, and deleting the question. */
@@ -28,19 +23,19 @@ export function NodeIdentity({
   const [name, setName] = useState(node.id);
   const [problem, setProblem] = useState<string>();
   const isRoot = draft.root === node.id;
-  const leading = referencesTo(draft, node.id);
+  const leading = referrersOf(draft, node.id);
   const set = (patch: Partial<RoutingNode>) =>
     edit((d) => replaceNode(d, node.id, { ...node, ...patch }));
   const rename = () => {
     const result = renameNode(draft, node.id, name.trim());
-    if ('error' in result) return setProblem(result.error);
+    if ('error' in result) return setProblem(editErrorMessage(draft, result.error));
     setProblem(undefined);
     edit(() => result.draft);
     onRenamed(name.trim());
   };
   const remove = () => {
     const result = deleteNode(draft, node.id);
-    if ('error' in result) return setProblem(result.error);
+    if ('error' in result) return setProblem(editErrorMessage(draft, result.error));
     edit(() => result.draft);
     onDeleted();
   };
@@ -75,7 +70,7 @@ export function NodeIdentity({
         {isRoot
           ? 'This is the first question callers hear.'
           : leading.length
-            ? `Reached from ${leading.map((r) => `${r.node} > ${r.branch}`).join(', ')}.`
+            ? `Reached from ${leading.join(', ')}.`
             : 'Nothing leads here yet, so callers never reach it.'}
       </p>
       {!isRoot && (

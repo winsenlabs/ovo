@@ -9,6 +9,8 @@ import { webSearchTools, webSearchUsage, type WebSearchConfig } from './web-sear
 
 export interface OpenAiInferenceConfig extends VoiceTuning {
   model: string;
+  /** An OpenAI-compatible endpoint that serves the Responses API; absent, OpenAI's own. */
+  baseUrl?: string;
   temperature?: number;
   maxOutputTokens?: number;
   instructions?: string;
@@ -33,6 +35,7 @@ export function openAiInference(
 ): AiSdkInference {
   const provider = createOpenAI({
     apiKey,
+    ...(binding.baseUrl ? { baseURL: binding.baseUrl } : {}),
     fetch: (url, init) =>
       net.fetch(String(url), init ? { ...init, signal: init.signal ?? undefined } : undefined),
   });

@@ -1,12 +1,11 @@
 'use client';
-import type { RoutingPointDraft } from '@winsendotai/ovo-contracts';
+import { routingDiff, type RoutingPointDraft } from '@winsendotai/ovo-contracts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../../lib/api';
 import { routingApi } from '../../../lib/data/routing-api';
 import { useEditableRecord } from '../../../lib/data/use-editable-record';
-import { indexIssues, type DraftIssue } from '../../../lib/derive/routing-anchor';
+import { indexIssues, type DraftIssue } from '../../../lib/derive/routing-issue-index';
 import { loadDraft } from '../../../lib/derive/routing-defaults';
-import { routingDiff } from '../../../lib/derive/routing-diff';
 import { clientIssues, hasSchemaErrors, mergeIssues } from '../../../lib/derive/routing-issues';
 import type { PointRecord, RoutingChange } from '../../../lib/types/routing';
 

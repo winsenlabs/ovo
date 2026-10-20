@@ -144,18 +144,22 @@ export function parseKeysFile(text: string): Record<string, string> {
 }
 
 /** The key names the configurations and the live LLM use. */
-export const KEY_NAMES = [...new Set([...STT_CONFIGS.map((c) => c.keyEnv), 'OPENAI_API_KEY'])];
+export const KEY_NAMES = [
+  ...new Set([...STT_CONFIGS.map((c) => c.keyEnv), 'OPENAI_API_KEY', 'JEV_API_KEY']),
+];
 
 /**
  * The keys file's keys over the environment's: a key may also be set as `OVO_EVAL_` + its name
- * (the live LLM's OpenAI key too), so a run without a keys file can still have one.
+ * (the live engines' keys too), so a run without a keys file can still have one. `extra` names a
+ * key the caller chose (a live LLM's own key variable).
  */
 export async function readKeys(
   path: string | undefined,
   env: Readonly<Record<string, string | undefined>> = process.env,
+  extra: readonly string[] = [],
 ): Promise<Record<string, string>> {
   const keys: Record<string, string> = {};
-  for (const name of KEY_NAMES) {
+  for (const name of new Set([...KEY_NAMES, ...extra])) {
     const value = env[`OVO_EVAL_${name}`];
     if (value) keys[name] = value;
   }

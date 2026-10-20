@@ -1,7 +1,7 @@
 import type { RoutingPointDraft } from '@winsendotai/ovo-contracts';
 import { vi } from 'vitest';
 import { useState, type ReactNode } from 'react';
-import { indexIssues } from '../../lib/derive/routing-anchor';
+import { indexIssues } from '../../lib/derive/routing-issue-index';
 import { clientIssues } from '../../lib/derive/routing-issues';
 import {
   agents,

@@ -1,6 +1,6 @@
 'use client';
 import { Select } from '../ui/inputs';
-import { moveStep } from '../../lib/derive/routing-edit';
+import { moveItem } from '../../lib/derive/list-edit';
 import type { HoldStep, HoldTimeoutStep } from '../../lib/types/queues';
 import { NumberField, optionsFrom, SelectField, TextField } from './fields';
 import { LinesEditor } from './lines-editor';
@@ -126,7 +126,7 @@ export function StepList({
             kinds={STEP_KINDS}
             onKind={(kind) => replace(index, blankStep(kind))}
             onRemove={() => onChange(steps.filter((_, i) => i !== index))}
-            onMove={(delta) => onChange(moveStep(steps, index, delta))}
+            onMove={(delta) => onChange(moveItem(steps, index, delta))}
             first={index === 0}
             last={index === steps.length - 1}
           >
@@ -225,7 +225,7 @@ export function TimeoutList({
             kinds={TIMEOUT_KINDS}
             onKind={(kind) => replace(index, blankTimeout(kind))}
             onRemove={() => onChange(steps.filter((_, i) => i !== index))}
-            onMove={(delta) => onChange(moveStep(steps, index, delta))}
+            onMove={(delta) => onChange(moveItem(steps, index, delta))}
             first={index === 0}
             last={index === steps.length - 1}
           >

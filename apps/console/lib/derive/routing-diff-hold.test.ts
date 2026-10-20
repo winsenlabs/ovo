@@ -1,94 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { routingDiff } from './routing-diff';
-import { groupChanges } from './routing-diff-groups';
-import { holdTimeline } from './routing-hold';
+import { routingDiff } from '@winsendotai/ovo-contracts';
+import { AREA_ORDER, groupChanges } from './routing-diff-groups';
 import { layoutMap } from './routing-map';
 import { sampleDraft } from './routing-support.test-helpers';
 import { treeItems, treeNeighbour } from './routing-tree';
 
-describe('routingDiff', () => {
-  it('is empty for equal drafts and deterministic', () => {
+describe('routingDiff in the console', () => {
+  it('is the contract diff, grouped by area for the publish drawer', () => {
     expect(routingDiff(sampleDraft(), sampleDraft())).toEqual([]);
-  });
-  it('reports added, removed and changed parts by area', () => {
     const before = sampleDraft();
     const after = sampleDraft();
     after.name = 'Renamed';
-    after.nodes[0]!.ask = { en: 'Different?' };
     after.nodes[0]!.branches.pop();
-    after.nodes.push({ ...after.nodes[1]!, id: 'extra' });
     after.transfer!.targets.shift();
     after.humanQueues = [];
     const changes = routingDiff(before, after);
-    const summaries = changes.map((c) => c.summary);
-    expect(summaries).toContain('The name changed');
-    expect(summaries).toContain('Added node extra');
-    expect(summaries).toContain('Removed branch intent > person');
-    expect(summaries).toContain('Removed transfer target billing');
-    expect(summaries).toContain('Removed queue binding desk');
-    expect(groupChanges(changes).map((g) => g.area)).toEqual([
-      'point',
-      'node',
-      'branch',
-      'transfer',
-      'queue',
-    ]);
-    expect(routingDiff(before, after)).toEqual(changes);
-  });
-  it('treats a missing before as all adds and diffs pinned pools', () => {
-    expect(routingDiff(undefined, sampleDraft()).map((c) => c.op)).toEqual([
-      'added',
-      'added',
-      'added',
-    ]);
-    const a = { ...sampleDraft(), pools: { p: { name: 'Sales', members: [{ id: 'a' }] } } };
-    const b = {
-      ...sampleDraft(),
-      pools: { p: { name: 'Sales', members: [{ id: 'a' }, { id: 'b' }] } },
-    };
-    expect(routingDiff(a, b).map((c) => c.summary)).toEqual(['Added pool Sales / member b']);
-  });
-});
-
-describe('holdTimeline', () => {
-  const base = {
-    loopFrom: 0,
-    maxSeconds: 20,
-    waitForCapacity: false,
-    onTimeout: [{ kind: 'default' as const }],
-  };
-  it('plays the steps then loops from loopFrom and cuts at the maximum', () => {
-    const { segments, timeoutAt } = holdTimeline({
-      ...base,
-      steps: [
-        { kind: 'silence', seconds: 3 },
-        { kind: 'line', line: { en: 'x' } },
-      ],
-      loopFrom: 1,
-    });
-    expect(segments.map((s) => [s.kind, s.fromS, s.toS, s.loop])).toEqual([
-      ['silence', 0, 3, 0],
-      ['line', 3, 7, 0],
-      ['line', 7, 11, 1],
-      ['line', 11, 15, 2],
-      ['line', 15, 19, 3],
-      ['line', 19, 20, 4],
-    ]);
-    expect(timeoutAt).toBe(20);
-  });
-  it('uses real clip lengths, cuts a clip at its own limit and labels unknown ones', () => {
-    const known = holdTimeline(
-      { ...base, steps: [{ kind: 'clip', assetId: 'a', maxSeconds: 5 }], maxSeconds: 12 },
-      { clipSeconds: () => 30 },
+    expect(changes.length).toBeGreaterThan(0);
+    expect(groupChanges(changes).map((g) => g.area)).toEqual(
+      AREA_ORDER.filter((area) => changes.some((c) => c.area === area)),
     );
-    expect(known.segments.map((s) => [s.fromS, s.toS])).toEqual([
-      [0, 5],
-      [5, 10],
-      [10, 12],
-    ]);
-    expect(
-      holdTimeline({ ...base, steps: [{ kind: 'clip', assetId: 'a' }] }).segments[0]!.label,
-    ).toContain('unknown');
+    expect(routingDiff(before, after)).toEqual(changes);
   });
 });
 

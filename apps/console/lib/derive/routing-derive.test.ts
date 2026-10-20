@@ -1,6 +1,6 @@
 import { ROUTING_ISSUE_CODES } from '@winsendotai/ovo-contracts';
 import { describe, expect, it } from 'vitest';
-import { indexIssues, routingIssueAnchor, issuesAt } from './routing-anchor';
+import { anchorIssue as routingIssueAnchor, indexIssues, issuesAt } from './routing-issue-index';
 import { clientIssues, friendlyMessage, mergeIssues } from './routing-issues';
 import { lineRows } from './routing-lines';
 import { bindConsequence, isBehind, numbersOfPoint } from './routing-numbers';

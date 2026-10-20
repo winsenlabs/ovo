@@ -223,7 +223,7 @@ describe('BranchList and TargetEditor', () => {
     const key = screen.getAllByLabelText('Branch key')[0]!;
     fireEvent.change(key, { target: { value: 'support' } });
     fireEvent.blur(key);
-    expect(screen.getByText('Branch support already exists here.')).toBeTruthy();
+    expect(screen.getByText('Node intent already has a branch support.')).toBeTruthy();
     expect((screen.getAllByLabelText('Branch key')[0] as HTMLInputElement).value).toBe('sales');
     fireEvent.change(key, { target: { value: 'buy' } });
     fireEvent.blur(key);
