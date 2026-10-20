@@ -602,6 +602,9 @@ importers:
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@winsendotai/ovo-plugin-decision-jev':
+        specifier: workspace:*
+        version: link:../plugin-decision-jev
       '@winsendotai/ovo-plugin-kit':
         specifier: workspace:*
         version: link:../plugin-kit
