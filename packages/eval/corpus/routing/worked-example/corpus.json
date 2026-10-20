@@ -1,0 +1,10 @@
+{
+  "schema": "ovo.routing-eval/1",
+  "name": "worked-example",
+  "description": "The routing docs' worked example (Main line: sales and support pools, a billing node on a webhook then the decision engine, a managed human desk) with the R1 router fixtures' conversations as scripted cases. Offline: engine answers are authored, so this scores the tree, the rules and the pools, not a model.",
+  "snapshot": "snapshot.json",
+  "cases": "cases.jsonl",
+  "assume": { "transferEnabled": true, "humanQueueEnabled": true },
+  "overrides": [{ "tag": "no-transfer", "assume": { "transferEnabled": false } }],
+  "router": { "timezone": "Asia/Kolkata" }
+}

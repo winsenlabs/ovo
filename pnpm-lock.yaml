@@ -599,6 +599,9 @@ importers:
       '@winsendotai/ovo-plugin-llm-openai':
         specifier: workspace:*
         version: link:../plugin-llm-openai
+      '@winsendotai/ovo-plugin-router':
+        specifier: workspace:*
+        version: link:../plugin-router
       '@winsendotai/ovo-plugin-speech-sarvam':
         specifier: workspace:*
         version: link:../plugin-speech-sarvam

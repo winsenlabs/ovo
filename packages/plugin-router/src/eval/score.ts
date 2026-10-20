@@ -31,7 +31,8 @@ export interface ScoreInput {
   name: string;
   /** `recorded`: engine answers are scripted. `live`: `live` supplies real engines (CLI `--live`). */
   engineMode: RoutingScorecard['engineMode'];
-  flags: SimulateInput['flags'];
+  /** The switches the run assumes; a function chooses them per case (a tag can change the assumption). */
+  flags: SimulateInput['flags'] | ((testcase: RoutingEvalCase) => SimulateInput['flags']);
   router: SimulateInput['router'];
   routingReleaseId?: string | null;
   /** Engines that run for real in every case, with their implementations. */
@@ -65,7 +66,7 @@ async function runCase(input: ScoreInput, testcase: RoutingEvalCase): Promise<Sc
     },
     now: input.now ?? EVAL_DEFAULT_NOW,
     router: input.router,
-    flags: input.flags,
+    flags: typeof input.flags === 'function' ? input.flags(testcase) : input.flags,
     ...(input.live ? { live: input.live.ports } : {}),
     ...(input.routingReleaseId ? { routingReleaseId: input.routingReleaseId } : {}),
   };
@@ -117,9 +118,10 @@ export async function scoreRoutingCorpus(input: ScoreInput): Promise<RoutingScor
       asserting.length,
     );
   };
-  const accuracy = Object.fromEntries(
-    FIELDS.map((name) => [name, field(name)]),
-  ) as unknown as RoutingScorecard['accuracy'];
+  const accuracy = Object.fromEntries(FIELDS.map((name) => [name, field(name)])) as Omit<
+    RoutingScorecard['accuracy'],
+    'overall'
+  >;
   const steps: Partial<Record<FallbackStepName, number>> = {};
   for (const step of FALLBACK_STEPS) {
     const n = scored.filter((entry) => entry.actual.fallback === step).length;
@@ -144,7 +146,7 @@ export async function scoreRoutingCorpus(input: ScoreInput): Promise<RoutingScor
       digest: routingSnapshotDigest(input.snapshot),
     },
     totals: { cases: total, passed, failed: total - passed },
-    accuracy: { ...accuracy, overall: rate(passed, total) },
+    accuracy: { overall: rate(passed, total), ...accuracy },
     fallbackRate: {
       ...rate(scored.filter((entry) => entry.actual.fallback !== 'none').length, total),
       byStep: steps,
