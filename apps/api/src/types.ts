@@ -47,6 +47,10 @@ export interface ManagementApiOptions {
   routingExternalEnabled?: boolean;
   /** `OVO_ROUTING_TRANSFER_ENABLED`, read by the worker; the API reports it and warns at publish. */
   routingTransferEnabled?: boolean;
+  /** `OVO_ROUTING_SIMULATE_LIVE_ENABLED`: an admin may run the simulator's decision and LLM engines for real (off). */
+  routingSimulateLiveEnabled?: boolean;
+  /** `OVO_ROUTING_SIMULATE_RATE_PER_MINUTE`: simulations and eval runs per identity per minute (30). */
+  routingSimulateRatePerMinute?: number;
   /** `OVO_HUMAN_QUEUE_ENABLED`: `/v1/human-queues|desk|human-queue/*` and the operator desk (off). */
   humanQueueEnabled?: boolean;
   /** `OVO_HUMAN_QUEUE_WEBHOOK_ENABLED`: webhook queues may post and `test-webhook` may run (off). */

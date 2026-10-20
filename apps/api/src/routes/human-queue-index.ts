@@ -3,6 +3,7 @@ import { startRoomReaper } from '../human-queue-reaper.ts';
 import { registerDeskAcceptRoute } from './desk-accept.ts';
 import { registerDeskRoutes } from './desk.ts';
 import { registerDeskStreamRoute } from './desk-stream.ts';
+import { registerHumanQueueActivityRoute } from './human-queue-activity.ts';
 import { registerHumanQueueCallbackRoutes } from './human-queue-callbacks.ts';
 import { registerHumanQueueOperatorRoutes } from './human-queue-operators.ts';
 import { registerHumanQueuePreviewRoutes } from './human-queue-preview.ts';
@@ -29,6 +30,7 @@ export function registerHumanQueue(input: HumanQueueRouteDependencies): void {
   registerHumanQueuePreviewRoutes({ ...full, testLimiter: new RateLimiter(10, 60_000, input.now) });
   registerHumanQueueOperatorRoutes(full);
   registerHumanQueueRoutes(full);
+  registerHumanQueueActivityRoute(full);
   registerDeskRoutes(full);
   registerDeskAcceptRoute(full);
   registerDeskStreamRoute(full);

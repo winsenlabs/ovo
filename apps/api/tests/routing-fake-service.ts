@@ -11,6 +11,7 @@ import {
   type RoutingReleaseSnapshot,
 } from '@winsendotai/ovo-contracts';
 import { RoutingPoolNameTakenError } from '@winsendotai/ovo-plugin-operations';
+import { FakeEvalRuns, latestReleases } from './routing-fake-eval-runs.ts';
 
 const WORKSPACE = 'ws-routing';
 
@@ -224,11 +225,21 @@ export class FakeRoutingService {
         .filter((row) => row.routingPointId === pointId)
         .sort((a, b) => b.version - a.version)
         .slice(0, limit),
+    latest: async (pointIds: readonly string[]) => latestReleases(this.releaseRows, pointIds),
   };
 
+  /** Active claims per pool and member, as `claims.activeByPool` would count them. */
+  readonly activeClaims: Record<string, Record<string, number>> = {};
   claims = {
     claim: async () => ({ kind: 'full' as const }),
     release: async () => 0,
-    active: async () => ({}),
+    active: async (poolId: string) => this.activeClaims[poolId] ?? {},
+    activeByPool: async (poolIds: readonly string[]) =>
+      Object.fromEntries(poolIds.map((id) => [id, this.activeClaims[id] ?? {}])),
   };
+
+  readonly evalRuns = new FakeEvalRuns(
+    () => this.releaseRows,
+    () => this.now(),
+  ).store;
 }

@@ -32,7 +32,7 @@ export interface RoutedCallPage {
 export const ROUTED_PAGE_MAX = 100;
 
 export function routedPageLimit(limit = 50): number {
-  return Math.max(1, Math.min(ROUTED_PAGE_MAX, Math.trunc(limit)));
+  return Number.isFinite(limit) ? Math.max(1, Math.min(ROUTED_PAGE_MAX, Math.trunc(limit))) : 50;
 }
 
 const invalidCursor = () =>

@@ -122,6 +122,10 @@ describe('RoutingSimulationResult', () => {
       turns: [{ ...result.turns[0], phase: 'sleeping' }],
     });
     rejects(RoutingSimulationResult, { ...result, warnings: [{ code: 'weird', message: 'x' }] });
+    accepts(RoutingSimulationResult, {
+      ...result,
+      warnings: [{ code: 'simulation_aborted', message: 'The wall-clock guard stopped the run.' }],
+    });
     rejects(RoutingSimulationResult, {
       ...result,
       outcome: {

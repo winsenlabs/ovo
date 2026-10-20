@@ -141,24 +141,45 @@ describe('routingFlagsFromEnv', () => {
       routingEnabled: false,
       routingExternalEnabled: false,
       routingTransferEnabled: false,
+      routingSimulateLiveEnabled: false,
+      routingSimulateRatePerMinute: 30,
     });
     expect(
       routingFlagsFromEnv({
         OVO_ROUTING_ENABLED: 'TRUE',
         OVO_ROUTING_EXTERNAL_ENABLED: '1',
         OVO_ROUTING_TRANSFER_ENABLED: 'yes',
+        OVO_ROUTING_SIMULATE_LIVE_ENABLED: 'yes',
       }),
     ).toEqual({
       routingEnabled: false,
       routingExternalEnabled: false,
       routingTransferEnabled: false,
+      routingSimulateLiveEnabled: false,
+      routingSimulateRatePerMinute: 30,
     });
     expect(
       routingFlagsFromEnv({
         OVO_ROUTING_ENABLED: 'true',
         OVO_ROUTING_EXTERNAL_ENABLED: 'true',
         OVO_ROUTING_TRANSFER_ENABLED: 'true',
+        OVO_ROUTING_SIMULATE_LIVE_ENABLED: 'true',
       }),
-    ).toEqual({ routingEnabled: true, routingExternalEnabled: true, routingTransferEnabled: true });
+    ).toEqual({
+      routingEnabled: true,
+      routingExternalEnabled: true,
+      routingTransferEnabled: true,
+      routingSimulateLiveEnabled: true,
+      routingSimulateRatePerMinute: 30,
+    });
+  });
+
+  it('reads the simulate rate (Wave 18) and refuses one outside 1-600', () => {
+    const rate = (value: string) =>
+      routingFlagsFromEnv({ OVO_ROUTING_SIMULATE_RATE_PER_MINUTE: value })
+        .routingSimulateRatePerMinute;
+    expect([rate('1'), rate(' 45 '), rate('600'), rate('')]).toEqual([1, 45, 600, 30]);
+    for (const bad of ['0', '601', '1.5', 'many', '-3'])
+      expect(() => rate(bad), bad).toThrow(/OVO_ROUTING_SIMULATE_RATE_PER_MINUTE/);
   });
 });

@@ -175,6 +175,8 @@ export const SIMULATION_WARNING_CODES = [
   'transfer_not_simulated',
   /** `load: live` was asked and claim storage could not answer; ran as `empty`. */
   'load_unavailable',
+  /** The wall-clock guard stopped the run; the result is what the router had done by then. */
+  'simulation_aborted',
 ] as const;
 export const SimulationWarning = z.object({
   code: z.enum(SIMULATION_WARNING_CODES),

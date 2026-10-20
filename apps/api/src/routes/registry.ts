@@ -22,6 +22,7 @@ import { registerReadinessRoutes } from './readiness.ts';
 import { registerHumanQueue } from './human-queue-index.ts';
 import { registerRoutingRoutes } from './routing.ts';
 import { createCallOutcomeReader } from './call-outcomes.ts';
+import { routerSimulator } from '../routing-simulator.ts';
 import { humanQueueFlagsFromEnv } from '../human-queue-config.ts';
 import { sessionHostEgress } from '../human-queue-egress.ts';
 import { registerRequiredMeterRoutes } from './required-meters.ts';
@@ -63,6 +64,8 @@ export function registerApiRoutes(deps: any): void {
       : undefined,
     routingEnabled: options.routingEnabled === true,
   });
+  const outcomes = createCallOutcomeReader(options);
+  app.addHook('onClose', () => outcomes.close());
   registerRoutingRoutes({
     app,
     store,
@@ -81,9 +84,11 @@ export function registerApiRoutes(deps: any): void {
     registry: new PluginRegistry(deps.catalog),
     ledger: options.costLedgerEnabled ? (ctx.get(Cap.costLedger) as CostLedgerService) : undefined,
     expectedVersion: deps.expectedVersion,
+    outcomes,
+    simulator: routerSimulator(),
+    simulateLiveEnabled: options.routingSimulateLiveEnabled === true,
+    simulateRatePerMinute: options.routingSimulateRatePerMinute,
   });
-  const outcomes = createCallOutcomeReader(options);
-  app.addHook('onClose', () => outcomes.close());
   registerHumanQueue({
     app,
     store,

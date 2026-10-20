@@ -30,3 +30,4 @@ export * from './publish-preview.ts';
 export * from './utilisation.ts';
 export * from './stats.ts';
 export * from './queue-activity.ts';
+export * from './summaries.ts';
