@@ -13,9 +13,11 @@ const server = createServer(async (request, response) => {
     return;
   }
   const scenario = fixtureScenario(request);
-  // Routing and inspector first: the desk handler answers every other `/v1/*` GET with an empty page.
-  if (await handleRoutingApi(request, response, scenario)) return;
+  // The inspector answers the routing paths it shares (status, points, agents) only with its own
+  // cookie, so it goes before routing; the desk handler answers every other `/v1/*` GET with an
+  // empty page and goes last.
   if (await handleInspectorApi(request, response, scenario)) return;
+  if (await handleRoutingApi(request, response, scenario)) return;
   if (await handleDeskApi(request, response, scenario)) return;
   if (request.url !== '/v1/auth/me') {
     response.writeHead(404, { 'content-type': 'application/json' });
