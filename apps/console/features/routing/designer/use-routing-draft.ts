@@ -37,7 +37,10 @@ export function useRoutingDraft(pointId: string) {
     const { point, version } = await routingApi.point(pointId);
     return { record: point, version };
   }, [pointId]);
-  const save = useCallback((draft: RoutingPointDraft, version: number) => routingApi.savePoint(pointId, draft, version), [pointId]);
+  const save = useCallback(
+    (draft: RoutingPointDraft, version: number) => routingApi.savePoint(pointId, draft, version),
+    [pointId],
+  );
   const base = useEditableRecord<PointRecord, RoutingPointDraft>({
     load,
     toDraft,
@@ -62,7 +65,8 @@ export function useRoutingDraft(pointId: string) {
       setValidating(true);
       try {
         const found = await routingApi.validate(pointId, draft);
-        if (run.current === mine) setServerIssues(found.map((i) => ({ ...i, source: 'server' as const })));
+        if (run.current === mine)
+          setServerIssues(found.map((i) => ({ ...i, source: 'server' as const })));
       } catch {
         if (run.current === mine) setServerIssues([]);
       } finally {
@@ -75,7 +79,14 @@ export function useRoutingDraft(pointId: string) {
   const issues = useMemo(() => mergeIssues(local, serverIssues), [local, serverIssues]);
   const index = useMemo(() => (draft ? indexIssues(draft, issues) : undefined), [draft, issues]);
   const conflict: Conflict | undefined = useMemo(
-    () => (base.conflict && draft ? { theirs: base.conflict.draft, version: base.conflict.version, changes: routingDiff(base.conflict.draft, draft) } : undefined),
+    () =>
+      base.conflict && draft
+        ? {
+            theirs: base.conflict.draft,
+            version: base.conflict.version,
+            changes: routingDiff(base.conflict.draft, draft),
+          }
+        : undefined,
     [base.conflict, draft],
   );
   return { ...base, point: base.record, conflict, issues, index, validating };

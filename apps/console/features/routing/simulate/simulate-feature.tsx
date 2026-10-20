@@ -93,7 +93,7 @@ export function SimulateFeature() {
     (byRelease.state.status === 'ready' ? byRelease.state.data?.routingPointId : undefined) ??
     list[0]?.id;
   return (
-    <div className="ds-stack">
+    <div className="ds-stack rt-page">
       <PageHeader
         eyebrow="Inbound"
         title="Simulate a call"

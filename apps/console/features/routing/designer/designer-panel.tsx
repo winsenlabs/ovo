@@ -43,11 +43,30 @@ export function DesignerPanel({
     case 'queues':
       return <QueuesTab />;
     case 'numbers':
-      return <NumbersTab pointId={pointId} pointName={pointName} numbers={numbers} isAdmin={role === 'admin'} refreshKey={refresh} onChanged={onChanged} />;
+      return (
+        <NumbersTab
+          pointId={pointId}
+          pointName={pointName}
+          numbers={numbers}
+          isAdmin={role === 'admin'}
+          refreshKey={refresh}
+          onChanged={onChanged}
+        />
+      );
     case 'releases':
-      return <ReleasesTab pointId={pointId} numbers={numbers} canEdit={role !== 'viewer'} refreshKey={refresh} onPublish={onPublish} />;
+      return (
+        <ReleasesTab
+          pointId={pointId}
+          numbers={numbers}
+          canEdit={role !== 'viewer'}
+          refreshKey={refresh}
+          onPublish={onPublish}
+        />
+      );
     case 'simulate':
-      return <SimulateTab pointId={pointId} pointName={pointName} releases={releases} role={role} />;
+      return (
+        <SimulateTab pointId={pointId} pointName={pointName} releases={releases} role={role} />
+      );
     default:
       return <TreeTab openId={openId} onOpen={onOpen} />;
   }

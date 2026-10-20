@@ -1,5 +1,9 @@
 'use client';
-import { TRANSFER_LIMITS, type RoutingTransferPolicy, type TransferTarget } from '@winsendotai/ovo-contracts';
+import {
+  TRANSFER_LIMITS,
+  type RoutingTransferPolicy,
+  type TransferTarget,
+} from '@winsendotai/ovo-contracts';
 import { useState } from 'react';
 import { IssueList } from '../../../components/routing/issue-list';
 import { LinesEditor } from '../../../components/routing/lines-editor';
@@ -27,7 +31,13 @@ const destinationLabel = (t: TransferTarget) => {
 type Change = (patch: Partial<RoutingTransferPolicy>) => void;
 
 /** The catalogue: where an agent may send a caller, with a drawer per target. */
-export function TransferTargets({ policy, onChange: setPolicy }: { policy: RoutingTransferPolicy; onChange: Change }) {
+export function TransferTargets({
+  policy,
+  onChange: setPolicy,
+}: {
+  policy: RoutingTransferPolicy;
+  onChange: Change;
+}) {
   const { draft, canEdit, index } = useDesigner();
   const [editing, setEditing] = useState<{ target?: TransferTarget; index: number }>();
   const keys = policy.targets.map((t) => t.key);
@@ -84,44 +94,46 @@ export function TransferTargets({ policy, onChange: setPolicy }: { policy: Routi
   ];
   return (
     <>
-        <SectionCard
-          title="Transfer targets"
-          description="Where an agent may send the caller. The agent's model chooses by the description and never sees the destination."
-          actions={
-            canEdit ? (
-              <button
-                type="button"
-                className="button"
-                disabled={policy.targets.length >= TRANSFER_LIMITS.targets}
-                onClick={() =>
-                  setEditing({
-                    index: -1,
-                    target: blankTransferTarget(freshKey('target', keys), draft.defaultTarget),
-                  })
-                }
-              >
-                Add target
-              </button>
-            ) : undefined
+      <SectionCard
+        title="Transfer targets"
+        description="Where an agent may send the caller. The agent's model chooses by the description and never sees the destination."
+        actions={
+          canEdit ? (
+            <button
+              type="button"
+              className="button"
+              disabled={policy.targets.length >= TRANSFER_LIMITS.targets}
+              onClick={() =>
+                setEditing({
+                  index: -1,
+                  target: blankTransferTarget(freshKey('target', keys), draft.defaultTarget),
+                })
+              }
+            >
+              Add target
+            </button>
+          ) : undefined
+        }
+      >
+        <IssueList issues={index.bySection.transfer} />
+        <DataTableV2
+          label="Transfer targets"
+          rows={policy.targets}
+          columns={columns}
+          rowKey={(t) => t.key}
+          empty={
+            <EmptyStateV2 title="No transfer targets">
+              Agents of this point cannot transfer a call until you add a target.
+            </EmptyStateV2>
           }
-        >
-          <IssueList issues={index.bySection.transfer} />
-          <DataTableV2
-            label="Transfer targets"
-            rows={policy.targets}
-            columns={columns}
-            rowKey={(t) => t.key}
-            empty={
-              <EmptyStateV2 title="No transfer targets">
-                Agents of this point cannot transfer a call until you add a target.
-              </EmptyStateV2>
-            }
-          />
-        </SectionCard>
+        />
+      </SectionCard>
       <TargetDrawer
         target={editing?.target}
         isNew={editing !== undefined && editing.index < 0}
-        existingKeys={editing && editing.index >= 0 ? keys.filter((_, i) => i !== editing.index) : keys}
+        existingKeys={
+          editing && editing.index >= 0 ? keys.filter((_, i) => i !== editing.index) : keys
+        }
         onSave={saveTarget}
         onClose={() => setEditing(undefined)}
       />
@@ -130,95 +142,101 @@ export function TransferTargets({ policy, onChange: setPolicy }: { policy: Routi
 }
 
 /** Announcements, confirmation, limits and handover for every transfer of the point. */
-export function TransferDefaults({ policy, onChange: setPolicy }: { policy: RoutingTransferPolicy; onChange: Change }) {
+export function TransferDefaults({
+  policy,
+  onChange: setPolicy,
+}: {
+  policy: RoutingTransferPolicy;
+  onChange: Change;
+}) {
   return (
     <>
-        <SectionCard title="Transfer defaults">
-          <LinesEditor
-            label="Announcement before a transfer"
-            value={policy.announcement}
-            onChange={(announcement) => setPolicy({ announcement })}
-          />
-          <LinesEditor
-            label="Said when every agent is busy"
-            value={policy.queueAnnouncement}
-            onChange={(queueAnnouncement) => setPolicy({ queueAnnouncement })}
-          />
-          <SelectField
-            id="transfer-confirm"
-            label="Ask the caller first"
-            value={policy.confirm}
-            options={[
-              { value: 'never', label: 'Never ask' },
-              { value: 'ask', label: 'Ask "shall I transfer you?"' },
-            ]}
-            onChange={(confirm) => setPolicy({ confirm: confirm as 'never' | 'ask' })}
-          />
-        </SectionCard>
-        <SectionCard title="Limits">
-          <div className="rt-grid">
-            <NumberField
-              id="limit-transfers"
-              label="Most transfers per call"
-              min={1}
-              max={TRANSFER_LIMITS.maxTransfersPerCall}
-              value={policy.limits.maxTransfers}
-              onChange={(maxTransfers) => setPolicy({ limits: { ...policy.limits, maxTransfers } })}
-            />
-            <NumberField
-              id="limit-remaining"
-              label="Not when less is left than"
-              unit="seconds"
-              min={10}
-              max={600}
-              value={policy.limits.minRemainingSeconds}
-              onChange={(minRemainingSeconds) =>
-                setPolicy({ limits: { ...policy.limits, minRemainingSeconds } })
-              }
-            />
-            <SelectField
-              id="limit-return"
-              label="Back to an agent already left"
-              value={policy.limits.returnToPrevious}
-              options={[
-                { value: 'refuse', label: 'Refuse' },
-                { value: 'allow', label: 'Allow' },
-              ]}
-              onChange={(returnToPrevious) =>
-                setPolicy({
-                  limits: {
-                    ...policy.limits,
-                    returnToPrevious: returnToPrevious as 'refuse' | 'allow',
-                  },
-                })
-              }
-            />
-          </div>
-        </SectionCard>
-        <SectionCard title="What the next agent is told">
-          <SwitchField
-            label="A summary of the call so far"
-            checked={policy.handover.summary}
-            onChange={(summary) => setPolicy({ handover: { ...policy.handover, summary } })}
-          />
-          <SwitchField
-            label="The variables captured so far"
-            checked={policy.handover.capturedVariables}
-            onChange={(capturedVariables) =>
-              setPolicy({ handover: { ...policy.handover, capturedVariables } })
-            }
+      <SectionCard title="Transfer defaults">
+        <LinesEditor
+          label="Announcement before a transfer"
+          value={policy.announcement}
+          onChange={(announcement) => setPolicy({ announcement })}
+        />
+        <LinesEditor
+          label="Said when every agent is busy"
+          value={policy.queueAnnouncement}
+          onChange={(queueAnnouncement) => setPolicy({ queueAnnouncement })}
+        />
+        <SelectField
+          id="transfer-confirm"
+          label="Ask the caller first"
+          value={policy.confirm}
+          options={[
+            { value: 'never', label: 'Never ask' },
+            { value: 'ask', label: 'Ask "shall I transfer you?"' },
+          ]}
+          onChange={(confirm) => setPolicy({ confirm: confirm as 'never' | 'ask' })}
+        />
+      </SectionCard>
+      <SectionCard title="Limits">
+        <div className="rt-grid">
+          <NumberField
+            id="limit-transfers"
+            label="Most transfers per call"
+            min={1}
+            max={TRANSFER_LIMITS.maxTransfersPerCall}
+            value={policy.limits.maxTransfers}
+            onChange={(maxTransfers) => setPolicy({ limits: { ...policy.limits, maxTransfers } })}
           />
           <NumberField
-            id="handover-turns"
-            label="Recent turns of the conversation"
-            min={0}
-            max={TRANSFER_LIMITS.transcriptTurns}
-            value={policy.handover.transcriptTurns}
-            onChange={(transcriptTurns) =>
-              setPolicy({ handover: { ...policy.handover, transcriptTurns } })
+            id="limit-remaining"
+            label="Not when less is left than"
+            unit="seconds"
+            min={10}
+            max={600}
+            value={policy.limits.minRemainingSeconds}
+            onChange={(minRemainingSeconds) =>
+              setPolicy({ limits: { ...policy.limits, minRemainingSeconds } })
             }
           />
-        </SectionCard>
+          <SelectField
+            id="limit-return"
+            label="Back to an agent already left"
+            value={policy.limits.returnToPrevious}
+            options={[
+              { value: 'refuse', label: 'Refuse' },
+              { value: 'allow', label: 'Allow' },
+            ]}
+            onChange={(returnToPrevious) =>
+              setPolicy({
+                limits: {
+                  ...policy.limits,
+                  returnToPrevious: returnToPrevious as 'refuse' | 'allow',
+                },
+              })
+            }
+          />
+        </div>
+      </SectionCard>
+      <SectionCard title="What the next agent is told">
+        <SwitchField
+          label="A summary of the call so far"
+          checked={policy.handover.summary}
+          onChange={(summary) => setPolicy({ handover: { ...policy.handover, summary } })}
+        />
+        <SwitchField
+          label="The variables captured so far"
+          checked={policy.handover.capturedVariables}
+          onChange={(capturedVariables) =>
+            setPolicy({ handover: { ...policy.handover, capturedVariables } })
+          }
+        />
+        <NumberField
+          id="handover-turns"
+          label="Recent turns of the conversation"
+          min={0}
+          max={TRANSFER_LIMITS.transcriptTurns}
+          value={policy.handover.transcriptTurns}
+          onChange={(transcriptTurns) =>
+            setPolicy({ handover: { ...policy.handover, transcriptTurns } })
+          }
+        />
+      </SectionCard>
     </>
   );
 }

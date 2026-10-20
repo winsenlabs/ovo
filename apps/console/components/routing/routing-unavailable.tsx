@@ -48,7 +48,7 @@ export function RoutingUnavailablePage({
   description?: string;
 }) {
   return (
-    <div className="ds-stack">
+    <div className="ds-stack rt-page">
       <PageHeader eyebrow={eyebrow} title={title} description={description} />
       <RoutingUnavailable state={state} onRetry={onRetry} />
     </div>

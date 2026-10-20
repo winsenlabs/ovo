@@ -41,13 +41,21 @@ export function PoolLoad({
             const now = data.members.find((x) => x.memberId === m.id)?.active ?? 0;
             return (
               <li key={m.id}>
-                <ProgressMeter label={m.id} value={now} max={m.capacity ?? Math.max(1, now)} valueLabel={loadLabel(now, m.capacity)} />
+                <ProgressMeter
+                  label={m.id}
+                  value={now}
+                  max={m.capacity ?? Math.max(1, now)}
+                  valueLabel={loadLabel(now, m.capacity)}
+                />
               </li>
             );
           })}
         </ul>
       ) : (
-        <EmptyStateV2 variant={unavailable ? 'unavailable' : 'first-run'} title={unavailable ? 'Live load is not available' : 'Loading live load…'} />
+        <EmptyStateV2
+          variant={unavailable ? 'unavailable' : 'first-run'}
+          title={unavailable ? 'Live load is not available' : 'Loading live load…'}
+        />
       )}
     </SectionCard>
   );

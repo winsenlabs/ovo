@@ -185,3 +185,8 @@
   width: 100%;
   min-width: 0;
 }
+/* A routing page never grows past the viewport: wide children (tabs, tables, the route map) scroll in their own box. */
+.rt-page,
+.rt-page .ds-card {
+  grid-template-columns: minmax(0, 1fr);
+}

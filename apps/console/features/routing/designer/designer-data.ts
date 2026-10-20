@@ -16,26 +16,62 @@ const ifReady = <T>(state: { status: string; data?: T }, fallback: T): T =>
  * or failing list never blocks editing the tree.
  */
 export function useDesignerData(pointId: string, enabled: boolean, refresh: number) {
-  const off = <T,>(load: () => Promise<T>, empty: T) => () => (enabled ? load() : Promise.resolve(empty));
-  const pools = useRoutingLoad(off(() => routingApi.pools(), []), [enabled]);
-  const agents = useRoutingLoad(off(() => routingApi.agents(), []), [enabled]);
+  const off =
+    <T>(load: () => Promise<T>, empty: T) =>
+    () =>
+      enabled ? load() : Promise.resolve(empty);
+  const pools = useRoutingLoad(
+    off(() => routingApi.pools(), []),
+    [enabled],
+  );
+  const agents = useRoutingLoad(
+    off(() => routingApi.agents(), []),
+    [enabled],
+  );
   const credentials = useRoutingLoad(() => queuesApi.credentials().catch(() => []), []);
   const queues = useRoutingLoad(() => queuesApi.list().catch(() => []), []);
   const queueStatus = useRoutingLoad(() => queuesApi.status().catch(() => undefined), []);
-  const audio = useRoutingLoad(off(() => routingApi.audio().catch(() => []), []), [enabled, refresh]);
-  const numbers = useRoutingLoad(off(() => routingApi.numbers(), []), [enabled, refresh]);
-  const releases = useRoutingLoad(off(() => routingApi.releases(pointId), []), [enabled, pointId, refresh]);
+  const audio = useRoutingLoad(
+    off(() => routingApi.audio().catch(() => []), []),
+    [enabled, refresh],
+  );
+  const numbers = useRoutingLoad(
+    off(() => routingApi.numbers(), []),
+    [enabled, refresh],
+  );
+  const releases = useRoutingLoad(
+    off(() => routingApi.releases(pointId), []),
+    [enabled, pointId, refresh],
+  );
   const releaseList: ReleaseSummary[] = ifReady(releases.state, []);
   const numberList: NumberRow[] = ifReady(numbers.state, []);
-  const latest = releaseList.reduce<ReleaseSummary | undefined>((best, r) => (!best || r.version > best.version ? r : best), undefined);
+  const latest = releaseList.reduce<ReleaseSummary | undefined>(
+    (best, r) => (!best || r.version > best.version ? r : best),
+    undefined,
+  );
   const mine = useMemo(() => numbersOfPoint(numberList, pointId), [numberList, pointId]);
-  const reference: Pick<DesignerEnv, 'pools' | 'agents' | 'credentials' | 'queues' | 'queueStatus' | 'audio'> = {
+  const reference: Pick<
+    DesignerEnv,
+    'pools' | 'agents' | 'credentials' | 'queues' | 'queueStatus' | 'audio'
+  > = {
     pools: ifReady(pools.state, []),
-    agents: agents.state.status === 'error' ? { status: 'error', message: agents.state.message } : agents.state.status === 'ready' ? agents.state : { status: 'loading' },
+    agents:
+      agents.state.status === 'error'
+        ? { status: 'error', message: agents.state.message }
+        : agents.state.status === 'ready'
+          ? agents.state
+          : { status: 'loading' },
     credentials: ifReady(credentials.state, []),
     queues: ifReady(queues.state, []),
     queueStatus: ifReady(queueStatus.state, undefined),
     audio: ifReady(audio.state, []),
   };
-  return { reference, releases: releaseList, latest, numbers: numberList, numbersLoaded: numbers.state.status === 'ready', mine };
+  return {
+    reference,
+    releases: releaseList,
+    latest,
+    numbers: numberList,
+    numbersLoaded: numbers.state.status === 'ready',
+    mine,
+  };
 }

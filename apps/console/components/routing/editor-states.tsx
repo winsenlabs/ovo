@@ -26,7 +26,7 @@ export function editorGate({
   if (phase === 'ready') return undefined;
   const header = <PageHeader eyebrow="Routing" title={title} />;
   return (
-    <div className="ds-stack">
+    <div className="ds-stack rt-page">
       {header}
       {phase === 'loading' ? (
         <KpiStrip>
@@ -35,7 +35,15 @@ export function editorGate({
           ))}
         </KpiStrip>
       ) : phase === 'missing' ? (
-        <EmptyStateV2 variant="filtered" title={`This ${what} does not exist`} action={<a className="button" href="/routing">Back to routing</a>}>
+        <EmptyStateV2
+          variant="filtered"
+          title={`This ${what} does not exist`}
+          action={
+            <a className="button" href="/routing">
+              Back to routing
+            </a>
+          }
+        >
           It may have been deleted.
         </EmptyStateV2>
       ) : (

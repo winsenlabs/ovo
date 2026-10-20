@@ -167,3 +167,23 @@ test('the designer and pool pages say so when routing is off', async ({ page }, 
   await expect(page.getByText('Routing is not enabled here')).toBeVisible();
   await sweepScreen(page, 'routing-disabled', info.project.name, problems);
 });
+
+test('a queue shows its activity and links to the designer that binds it', async ({
+  page,
+}, info) => {
+  const problems = await scenarioPage(page, 'rich');
+  await page.goto('/operations/queues');
+  // The "Used by" column drops out on a phone, so the link is present in the table either way.
+  await expect(page.locator('a[href^="/routing/points/"]').first()).toBeAttached();
+  await page.getByRole('button', { name: 'Activity of Support desk' }).click();
+  const drawer = page.getByRole('dialog', { name: 'Activity: Support desk' });
+  await expect(drawer.getByRole('region', { name: 'Recent tickets' })).toBeVisible();
+  await expect(drawer.getByText('64')).toBeVisible();
+  await sweepScreen(page, 'queue-activity', info.project.name, problems);
+});
+
+test('queue activity says human queues are off when they are', async ({ page }) => {
+  await scenarioPage(page, 'disabled');
+  await page.goto('/operations/queues');
+  await expect(page.getByText('Human queues are not enabled here')).toBeVisible();
+});

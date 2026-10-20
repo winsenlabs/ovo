@@ -111,7 +111,11 @@ export function SimulatePanel({
             pointId={pointId}
             targetOptions={targetOptions}
             releaseId={releaseId}
-            loadError={snapshot && 'error' in snapshot && snapshot.id === releaseId ? snapshot.error : undefined}
+            loadError={
+              snapshot && 'error' in snapshot && snapshot.id === releaseId
+                ? snapshot.error
+                : undefined
+            }
             zone={zone}
             onChange={set}
           />

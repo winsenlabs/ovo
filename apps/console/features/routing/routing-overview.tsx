@@ -75,7 +75,7 @@ export function RoutingOverview({ role }: { role: SessionIdentity['role'] }) {
   const failed = (s: { status: string; message?: string }) =>
     s.status === 'error' ? s.message : undefined;
   return (
-    <div className="ds-stack">
+    <div className="ds-stack rt-page">
       <PageHeader
         eyebrow="Inbound"
         title="Routing"

@@ -27,7 +27,8 @@ export { sampleDraft } from '../../lib/derive/routing-support.test-helpers';
 /** The fixture's pools as the wire type the screens read. */
 export const typedPools = () => pools() as unknown as PoolRecord[];
 /** The fixture router's answer, typed as the simulator's result. */
-export const typedSimulate = (body: unknown) => simulate(body) as unknown as RoutingSimulationResult;
+export const typedSimulate = (body: unknown) =>
+  simulate(body) as unknown as RoutingSimulationResult;
 
 /** Every `routingApi` call as a mock; `resetRouting` gives each a fixture-backed default. */
 export const routingApi = {
