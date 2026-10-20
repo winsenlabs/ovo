@@ -605,8 +605,12 @@ not that a model classifies well. See [docs/eval/routing.md](../eval/routing.md)
   (the outcome indexes are built in a transaction, so the sink's writes wait on them and retry).
 - `CallOutcomeRoute` gains optional `turns`, `routeMs`, `fallbacks` and `reasks`, folded from
   `route.decision` and `route.fallback`. Calls from before R4 have none of them: the `fallback`
-  filter and the stats read them as zero or unknown. `scripts/ops/refold-route-outcomes.mjs`
-  re-folds routed calls from their session events (a dry run unless told otherwise).
+  filter and the stats read them as zero or unknown. To backfill them, run
+  `node scripts/ops/refold-route-outcomes.mjs --workspace <id> [--limit 500] [--since <time>]`
+  with the control database URL in the environment: a dry run that prints the routes it would
+  rebuild from the calls' session events (ids and routing fields only); add `--apply` to write
+  them. It writes only `route`, under the lock the outcome sink takes, skips (and names) a call
+  with an event that no longer parses, and a second run finds nothing left to do.
 - New settings: `OVO_ROUTING_SIMULATE_LIVE_ENABLED` and `OVO_ROUTING_SIMULATE_RATE_PER_MINUTE` (api);
   see the [environment reference](../env-reference.md).
 
