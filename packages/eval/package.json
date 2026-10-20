@@ -12,6 +12,7 @@
     "@winsendotai/ovo-behaviors": "workspace:*",
     "@winsendotai/ovo-conformance": "workspace:*",
     "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-decision-jev": "workspace:*",
     "@winsendotai/ovo-plugin-kit": "workspace:*",
     "@winsendotai/ovo-plugin-llm-openai": "workspace:*",
     "@winsendotai/ovo-plugin-router": "workspace:*",

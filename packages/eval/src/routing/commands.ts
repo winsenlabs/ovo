@@ -12,7 +12,7 @@ import {
   type ScoreInput,
 } from '@winsendotai/ovo-plugin-router';
 import { loadCorpus, scoreSetup } from './corpus.ts';
-import { liveSetup, type InferenceFactory } from './live.ts';
+import { liveSetup, type LiveFactories } from './live.ts';
 import { markdownReport } from './report.ts';
 import { routingHtmlReport } from './report-html.ts';
 import { workedExampleSnapshot } from './worked-example.ts';
@@ -23,7 +23,9 @@ const log = (line: string) => process.stderr.write(`${line}\n`);
 
 const USAGE = `pnpm eval:routing [run] [--corpus dir] [--label name] [--out dir]
      [--baseline scorecard.json [--thresholds file]] [--save-baseline file]
-     [--live llm --llm-model id --keys file] [--assume-transfer] [--assume-human]
+     [--live llm,decision --keys file [--llm-model id] [--llm-provider name] [--llm-key-env VAR]
+      [--llm-base-url url] [--decision-model id] [--decision-calibration-label label]]
+     [--assume-transfer] [--assume-human]
 pnpm eval:routing diff <baseline.json> <candidate.json> [--thresholds file] [--out dir]
 pnpm eval:routing snapshot [--corpus dir] [--write]
 Exits 1 when the gate fails, 2 on a usage or run error.`;
@@ -73,6 +75,11 @@ function parse(args: string[]) {
       live: { type: 'string' },
       keys: { type: 'string' },
       'llm-model': { type: 'string' },
+      'llm-provider': { type: 'string' },
+      'llm-key-env': { type: 'string' },
+      'llm-base-url': { type: 'string' },
+      'decision-model': { type: 'string' },
+      'decision-calibration-label': { type: 'string' },
       'assume-transfer': { type: 'boolean' },
       'assume-human': { type: 'boolean' },
       write: { type: 'boolean' },
@@ -81,10 +88,8 @@ function parse(args: string[]) {
   });
 }
 
-/** What a run can be given besides its arguments: tests supply a fake inference instead of OpenAI. */
-export interface Deps {
-  inference?: InferenceFactory;
-}
+/** What a run can be given besides its arguments: tests supply fake engines instead of the real services. */
+export type Deps = LiveFactories;
 
 async function run(values: Values, deps: Deps): Promise<number> {
   if (values.live !== undefined && values['save-baseline']) {
@@ -95,8 +100,17 @@ async function run(values: Values, deps: Deps): Promise<number> {
     values.live === undefined
       ? undefined
       : await liveSetup(
-          { live: values.live, keys: values.keys, model: values['llm-model'] },
-          deps.inference,
+          {
+            live: values.live,
+            keys: values.keys,
+            model: values['llm-model'],
+            provider: values['llm-provider'],
+            keyEnv: values['llm-key-env'],
+            baseUrl: values['llm-base-url'],
+            decisionModel: values['decision-model'],
+            calibrationLabel: values['decision-calibration-label'],
+          },
+          deps,
         );
   try {
     return await score(values, live?.live);

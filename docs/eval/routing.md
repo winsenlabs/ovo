@@ -47,6 +47,7 @@ pnpm eval:routing --save-baseline packages/eval/baselines/routing-worked-example
 pnpm eval:routing diff <baseline.json> <candidate.json> [--thresholds file]
 pnpm eval:routing snapshot --write                 # regenerate the worked example's snapshot.json
 pnpm eval:routing --live llm --llm-model <id> --keys ~/.ovo-eval/keys.env   # the classifier for real
+pnpm eval:routing --live llm,decision --llm-model <id> --decision-calibration-label <label> --keys ~/.ovo-eval/keys.env
 ```
 
 (`pnpm eval:routing` is `tsx packages/eval/src/routing/cli.ts`.) Each run writes `<label>.json`
@@ -56,14 +57,26 @@ self-contained page: headline numbers, the gate's verdict, shaded confusion matr
 or run error. `--assume-transfer` and `--assume-human` force those switches on whatever the corpus
 says.
 
-**`--live llm`** runs the LLM classifier against a real model instead of the scripted answers
-(OpenAI Responses; the key is `OPENAI_API_KEY` in the `--keys` file or `OVO_EVAL_OPENAI_API_KEY`).
-The scorecard is labelled `engineMode: live`, so it measures the model as well as the tree; it costs
-money, varies run to run, takes at most 8 caller turns a case (longer cases fail with
-`run: live_turns_exceeded`), and cannot be saved as a baseline. Decision and external engines
-cannot be run from the CLI (they need the release's own decision service and webhook secrets); the
-API's simulator runs them live behind its own flags. The CLI path is unit-tested with a fake model
-and has not been run against the real provider in CI, which holds no keys.
+**`--live llm,decision`** runs those engines against the real services instead of the scripted
+answers. The scorecard is labelled `engineMode: live`, so it measures the engine as well as the tree;
+it costs money, varies run to run, takes at most 8 caller turns a case (longer cases fail with
+`run: live_turns_exceeded`), and cannot be saved as a baseline.
+
+- **llm** is provider-configurable: `--llm-provider` (default `openai`, the only entry in
+  `packages/eval/src/routing/live-llm.ts` today; add an inference plugin there to add another),
+  `--llm-model`, `--llm-key-env` (the variable in the `--keys` file that holds the key; default the
+  provider's own, `OPENAI_API_KEY` for `openai`) and `--llm-base-url` (an https endpoint that serves
+  the provider's API; plain http only for localhost). Each also reads `OVO_EVAL_LLM_PROVIDER`,
+  `OVO_EVAL_LLM_MODEL`, `OVO_EVAL_LLM_KEY_ENV` and `OVO_EVAL_LLM_BASE_URL`; a flag wins. A key can be
+  in the `--keys` file or in the environment as `OVO_EVAL_<name>`.
+- **decision** runs the Jev adapter: `--decision-calibration-label` (required, or
+  `OVO_EVAL_DECISION_CALIBRATION_LABEL`), `--decision-model` (optional), and `JEV_API_KEY` in the keys
+  file (or `OVO_EVAL_JEV_API_KEY`).
+- **external** cannot be run from the CLI: it needs the release's own signed webhook host and
+  secrets. The API's simulator runs it live behind its own flags.
+
+The CLI paths are unit-tested with fake engines and have not been run against the real providers in
+CI, which holds no keys.
 
 ## The corpus
 
