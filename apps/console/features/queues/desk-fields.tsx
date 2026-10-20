@@ -2,7 +2,13 @@
 import { RadioCardGroup } from '../../components/ui/choice-card';
 import type { ManagedQueueDefinition } from '../../lib/types/queues';
 import type { Patch } from './common-fields';
-import { FormSection, NumberField, SelectField, SwitchField, TagsField } from './fields';
+import {
+  FormSection,
+  NumberField,
+  SelectField,
+  SwitchField,
+  TagsField,
+} from '../../components/routing/fields';
 
 /** How operators take calls from a desk queue: assignment, staffing, the AI's role, send-back. */
 export function DeskFields({

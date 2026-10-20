@@ -9,6 +9,7 @@ import { ThemeToggle } from '../../../components/ui/theme-toggle';
 import { ChartsSection } from './sections-d';
 import { FeedbackAndFormSections } from './sections-b';
 import { MediaSection } from './sections-c';
+import { RoutingSection } from './sections-routing';
 import { TokensAndDataSections } from './sections-a';
 
 export default function DesignSystemPage() {
@@ -31,6 +32,7 @@ export default function DesignSystemPage() {
       <FeedbackAndFormSections />
       <MediaSection />
       <ChartsSection />
+      <RoutingSection />
     </div>
   );
 }

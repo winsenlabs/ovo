@@ -4,7 +4,13 @@ import { Drawer } from '../../components/ui/drawer';
 import { InlineAlert } from '../../components/ui/feedback-v2';
 import { queuesApi } from '../../lib/data/queues-api';
 import type { OperatorRow } from '../../lib/types/queues';
-import { NumberField, SelectField, SwitchField, TagsField, TextField } from './fields';
+import {
+  NumberField,
+  SelectField,
+  SwitchField,
+  TagsField,
+  TextField,
+} from '../../components/routing/fields';
 
 export interface UserOption {
   id: string;

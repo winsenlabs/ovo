@@ -1,6 +1,6 @@
 'use client';
 import type { WebhookResponseMapping } from '../../lib/types/queues';
-import { FormSection, TagsField, TextField } from './fields';
+import { FormSection, TagsField, TextField } from '../../components/routing/fields';
 
 /** How to read the third party's answer. All paths are RFC 6901 JSON pointers, blank for the default. */
 export function ResponseFields({

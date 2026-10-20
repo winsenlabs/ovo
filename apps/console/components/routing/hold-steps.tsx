@@ -1,12 +1,19 @@
 'use client';
-import { Select } from '../../components/ui/inputs';
+import { Select } from '../ui/inputs';
+import { moveStep } from '../../lib/derive/routing-edit';
 import type { HoldStep, HoldTimeoutStep } from '../../lib/types/queues';
-import { NumberField, optionsFrom, TextField } from './fields';
+import { NumberField, optionsFrom, SelectField, TextField } from './fields';
 import { LinesEditor } from './lines-editor';
 
 export interface AudioOption {
   value: string;
   label: string;
+}
+
+/** Keys a timeout step can name; when given, the step picks from them instead of typing a key. */
+export interface HoldChoices {
+  queues?: readonly string[];
+  targets?: readonly string[];
 }
 
 const STEP_KINDS = optionsFrom({
@@ -37,13 +44,16 @@ export function blankTimeout(kind: string): HoldTimeoutStep {
   return { kind: kind === 'default' ? 'default' : 'return' };
 }
 
-/** One row of a list the operator can reorder by removing and adding; shared by both lists. */
+/** One row of a reorderable list; shared by both lists. Reordering is by buttons, never drag. */
 function Row({
   label,
   kind,
   kinds,
   onKind,
   onRemove,
+  onMove,
+  first,
+  last,
   children,
 }: {
   label: string;
@@ -51,20 +61,43 @@ function Row({
   kinds: readonly { value: string; label: string }[];
   onKind: (kind: string) => void;
   onRemove: () => void;
+  onMove: (delta: -1 | 1) => void;
+  first: boolean;
+  last: boolean;
   children?: React.ReactNode;
 }) {
   return (
     <li className="queue-row">
       <Select aria-label={`${label} type`} value={kind} options={kinds} onChange={onKind} />
       <div className="queue-row-body">{children}</div>
-      <button
-        type="button"
-        className="text-button"
-        aria-label={`Remove ${label}`}
-        onClick={onRemove}
-      >
-        Remove
-      </button>
+      <span className="rt-row-actions">
+        <button
+          type="button"
+          className="text-button"
+          aria-label={`Move ${label} up`}
+          disabled={first}
+          onClick={() => onMove(-1)}
+        >
+          Up
+        </button>
+        <button
+          type="button"
+          className="text-button"
+          aria-label={`Move ${label} down`}
+          disabled={last}
+          onClick={() => onMove(1)}
+        >
+          Down
+        </button>
+        <button
+          type="button"
+          className="text-button"
+          aria-label={`Remove ${label}`}
+          onClick={onRemove}
+        >
+          Remove
+        </button>
+      </span>
     </li>
   );
 }
@@ -73,10 +106,12 @@ export function StepList({
   steps,
   audio,
   onChange,
+  idPrefix = 'hold',
 }: {
   steps: HoldStep[];
   audio: readonly AudioOption[];
   onChange: (steps: HoldStep[]) => void;
+  idPrefix?: string;
 }) {
   const replace = (index: number, step: HoldStep) =>
     onChange(steps.map((existing, i) => (i === index ? step : existing)));
@@ -91,10 +126,13 @@ export function StepList({
             kinds={STEP_KINDS}
             onKind={(kind) => replace(index, blankStep(kind))}
             onRemove={() => onChange(steps.filter((_, i) => i !== index))}
+            onMove={(delta) => onChange(moveStep(steps, index, delta))}
+            first={index === 0}
+            last={index === steps.length - 1}
           >
             {step.kind === 'silence' && (
               <NumberField
-                id={`hold-step-${index}-seconds`}
+                id={`${idPrefix}-step-${index}-seconds`}
                 label="Seconds"
                 value={step.seconds}
                 min={1}
@@ -136,12 +174,43 @@ export function StepList({
   );
 }
 
+function KeyField({
+  id,
+  label,
+  value,
+  choices,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  choices?: readonly string[];
+  onChange: (value: string) => void;
+}) {
+  return choices ? (
+    <SelectField
+      id={id}
+      label={label}
+      value={value}
+      placeholder="Choose…"
+      options={choices.map((c) => ({ value: c, label: c }))}
+      onChange={onChange}
+    />
+  ) : (
+    <TextField id={id} label={label} value={value} onChange={onChange} />
+  );
+}
+
 export function TimeoutList({
   steps,
   onChange,
+  idPrefix = 'timeout',
+  choices,
 }: {
   steps: HoldTimeoutStep[];
   onChange: (steps: HoldTimeoutStep[]) => void;
+  idPrefix?: string;
+  choices?: HoldChoices;
 }) {
   const replace = (index: number, step: HoldTimeoutStep) =>
     onChange(steps.map((existing, i) => (i === index ? step : existing)));
@@ -156,27 +225,32 @@ export function TimeoutList({
             kinds={TIMEOUT_KINDS}
             onKind={(kind) => replace(index, blankTimeout(kind))}
             onRemove={() => onChange(steps.filter((_, i) => i !== index))}
+            onMove={(delta) => onChange(moveStep(steps, index, delta))}
+            first={index === 0}
+            last={index === steps.length - 1}
           >
             {step.kind === 'human' && (
-              <TextField
-                id={`timeout-${index}-queue`}
+              <KeyField
+                id={`${idPrefix}-${index}-queue`}
                 label="Queue key"
                 value={step.queueId}
+                choices={choices?.queues}
                 onChange={(queueId) => replace(index, { kind: 'human', queueId })}
               />
             )}
             {step.kind === 'target' && (
-              <TextField
-                id={`timeout-${index}-target`}
+              <KeyField
+                id={`${idPrefix}-${index}-target`}
                 label="Target key"
                 value={step.key}
+                choices={choices?.targets}
                 onChange={(key) => replace(index, { kind: 'target', key })}
               />
             )}
             {step.kind === 'callback' && (
               <>
                 <NumberField
-                  id={`timeout-${index}-minutes`}
+                  id={`${idPrefix}-${index}-minutes`}
                   label="Call back in"
                   unit="minutes"
                   min={5}

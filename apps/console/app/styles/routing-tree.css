@@ -1,0 +1,129 @@
+/* The question tree and the route map (Wave 18). */
+.rt-tree {
+  display: grid;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.rt-tree-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding-block: var(--space-2);
+  padding-inline-end: var(--space-3);
+  border-block-end: 1px solid var(--border);
+  cursor: pointer;
+}
+.rt-tree-item:last-child {
+  border-block-end: 0;
+}
+.rt-tree-item:hover {
+  background: var(--surface-2);
+}
+.rt-tree-item:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.rt-tree-item.selected {
+  background: var(--accent-soft);
+}
+.rt-tree-item.rt-branch {
+  font-size: var(--text-data-size);
+}
+.rt-twisty {
+  width: 16px;
+  color: var(--text-2);
+  text-align: center;
+}
+.rt-tree-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.rt-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.rt-keys dl {
+  display: grid;
+  gap: var(--space-1);
+}
+.rt-keys dt {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.rt-keys dd {
+  margin: 0;
+}
+/* The route map and its outline. */
+.rt-map-scroll {
+  overflow: auto;
+  max-width: 100%;
+}
+.rt-map text {
+  fill: var(--text);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+.rt-map .rt-map-sub {
+  fill: var(--text-2);
+  font-size: 11px;
+}
+.rt-map-edge {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+.rt-map-node rect {
+  fill: var(--surface);
+  stroke: var(--border-strong);
+  cursor: pointer;
+}
+.rt-map-node:hover rect {
+  fill: var(--accent-soft);
+}
+.rt-map-node.flag-danger rect {
+  stroke: var(--danger);
+  stroke-width: 2;
+}
+.rt-map-node.flag-warn rect {
+  stroke: var(--warn);
+  stroke-width: 2;
+}
+.rt-map-target rect {
+  fill: var(--surface-2);
+  stroke: var(--border);
+}
+.rt-map .rt-map-flag {
+  fill: var(--danger-text);
+  font-weight: 600;
+}
+.rt-outline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rt-outline ul {
+  margin: 0 0 var(--space-2);
+  padding-inline-start: var(--space-4);
+  color: var(--text-2);
+  font-size: var(--text-data-size);
+}
+@media (max-width: 700px) {
+  .rt-map-scroll {
+    display: none;
+  }
+}
+@media (min-width: 701px) {
+  .rt-outline {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

@@ -1,0 +1,192 @@
+/* Routing designer, pools, simulator (Wave 18). Tokens only: light and dark come from tokens.css. */
+.rt-stack {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.rt-pad {
+  padding: var(--space-4);
+}
+.rt-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+.rt-inline {
+  align-items: end;
+}
+.rt-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.rt-readonly {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.rt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.rt-toolbar p {
+  flex: 1 1 280px;
+  margin: 0;
+}
+.rt-card {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3);
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.rt-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.rt-card-head h4 {
+  margin: 0;
+}
+.rt-row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.rt-when {
+  margin: 0;
+}
+.rt-matcher {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-inline-start: 3px solid var(--border-strong);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.rt-matcher-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+.rt-answer {
+  margin: 0;
+}
+.rt-answer legend {
+  padding: 0 var(--space-2);
+  font-weight: 600;
+}
+.rt-checks {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rt-confirm {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.rt-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.rt-expect {
+  display: grid;
+  gap: var(--space-2);
+}
+.rt-clips,
+.rt-upload {
+  display: grid;
+  gap: var(--space-3);
+}
+.rt-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.rt-preview audio {
+  max-width: 100%;
+}
+.ui-drawer.rt-drawer-wide {
+  width: min(780px, 100vw);
+}
+.rt-issues {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rt-issue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-data-size);
+}
+.rt-issue.tone-danger {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+.rt-issue.tone-warn {
+  background: var(--warn-soft);
+  color: var(--warn-text);
+}
+.rt-issue code {
+  margin-inline-start: auto;
+  color: inherit;
+}
+/* Diffs and the publish drawer. */
+.rt-changes ul,
+.rt-pins {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rt-change-op {
+  display: inline-block;
+  min-width: 70px;
+  margin-inline-end: var(--space-2);
+  font-weight: 600;
+}
+.rt-change.op-added .rt-change-op {
+  color: var(--ok-text);
+}
+.rt-change.op-removed .rt-change-op {
+  color: var(--danger-text);
+}
+.rt-change.op-changed .rt-change-op {
+  color: var(--info-text);
+}
+.rt-publish {
+  max-width: 640px;
+}
+.queue-row-body input:not([type]),
+.queue-row-body input[type='text'] {
+  width: 100%;
+  min-width: 0;
+}
+/* A routing page never grows past the viewport: wide children (tabs, tables, the route map) scroll in their own box. */
+.rt-page,
+.rt-page .ds-card {
+  grid-template-columns: minmax(0, 1fr);
+}

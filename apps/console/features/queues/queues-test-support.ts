@@ -24,6 +24,15 @@ export const queuesApi = {
 };
 export const queuesApiModule = () => ({ queuesApi });
 
+/** The activity call lives with the routing client; `vi.mock('../../lib/data/routing-api', activityApiModule)`. */
+export const activityApi = { queueActivity: vi.fn() };
+export const activityApiModule = async () => {
+  const actual = await vi.importActual<typeof import('../../lib/data/routing-api')>(
+    '../../lib/data/routing-api',
+  );
+  return { ...actual, routingApi: { ...actual.routingApi, ...activityApi } };
+};
+
 export const roomStatus = (patch: Partial<HumanQueueStatus> = {}): HumanQueueStatus => ({
   enabled: true,
   webhookEnabled: true,
@@ -88,7 +97,7 @@ export const operator = (patch: Partial<OperatorRow> = {}): OperatorRow => ({
 });
 
 export function resetQueues() {
-  for (const mock of Object.values(queuesApi)) mock.mockReset();
+  for (const mock of [...Object.values(queuesApi), ...Object.values(activityApi)]) mock.mockReset();
   queuesApi.status.mockResolvedValue(roomStatus());
   queuesApi.list.mockResolvedValue([managedRecord(), externalRecord()]);
   queuesApi.credentials.mockResolvedValue([{ id: 'acd-hmac', label: 'ACD signing secret' }]);

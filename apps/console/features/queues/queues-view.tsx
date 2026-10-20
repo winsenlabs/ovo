@@ -12,6 +12,7 @@ import { queuesApi } from '../../lib/data/queues-api';
 import { queueKpis } from '../../lib/derive/queues';
 import type { HumanQueueStatus } from '../../lib/types/desk';
 import type { QueueDefinition, QueueRecord } from '../../lib/types/queues';
+import { ActivityDrawer } from './activity-drawer';
 import { OperatorsTab } from './operators-tab';
 import { queueColumns } from './queue-columns';
 import { QueueDrawer } from './queue-drawer';
@@ -31,6 +32,7 @@ export function QueuesView({ role }: { role: SessionIdentity['role'] }) {
   const [editing, setEditing] = useState<{ record?: QueueRecord; kind: QueueDefinition['kind'] }>();
   const [testing, setTesting] = useState<{ record: QueueRecord; state: TestState }>();
   const [notice, setNotice] = useState<string>();
+  const [activity, setActivity] = useState<QueueRecord>();
   const { confirm, dialog } = useConfirmDialog();
   const canEdit = role !== 'viewer';
   const canTest = role === 'admin';
@@ -105,6 +107,7 @@ export function QueuesView({ role }: { role: SessionIdentity['role'] }) {
         onEdit: (record) => setEditing({ record, kind: record.definition.kind }),
         onTest: (record) => void runTest(record),
         onDelete: (record) => void remove(record),
+        onActivity: setActivity,
       }),
     // `runTest` and `remove` only close over stable state setters and `reload`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -237,6 +240,7 @@ export function QueuesView({ role }: { role: SessionIdentity['role'] }) {
           void reload();
         }}
       />
+      <ActivityDrawer record={activity} onClose={() => setActivity(undefined)} />
       <Dialog
         open={testing !== undefined}
         onClose={() => setTesting(undefined)}

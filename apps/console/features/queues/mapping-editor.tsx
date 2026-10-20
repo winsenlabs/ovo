@@ -5,7 +5,7 @@ import { InlineAlert } from '../../components/ui/feedback-v2';
 import { Select } from '../../components/ui/inputs';
 import { availableContextFields } from '../../lib/derive/queues';
 import type { ContextPolicy, WebhookSpec } from '../../lib/types/queues';
-import { FormSection, SwitchField } from './fields';
+import { FormSection, SwitchField } from '../../components/routing/fields';
 import { useMappingPreview } from './use-mapping-preview';
 
 const STARTER = {
