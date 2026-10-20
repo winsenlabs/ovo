@@ -22,10 +22,11 @@ import {
   initialState,
   limitReason,
   nodeMap,
+  progressOf,
   remember,
   type RouterState,
 } from './state.ts';
-import { attemptTarget, type Attempt, type RouteOutcome } from './targets.ts';
+import { attemptFor, type RouteOutcome } from './targets.ts';
 import { completionReasonOf, finishLine, recordFinish } from './finish.ts';
 import type { RouterPhase, RouterPorts, RouterReply } from './ports.ts';
 
@@ -65,6 +66,11 @@ export class RouterCore {
 
   get outcome(): RouteOutcome | undefined {
     return this.outcomeValue;
+  }
+
+  /** Where the route stands (node, path, context, router turns), as a copy for a simulator to read. */
+  get progress(): ReturnType<typeof progressOf> {
+    return progressOf(this.state);
   }
 
   /** `route:<agent|end|callback>:<path joined by '>'>`, at most 200 characters, once decided. */
@@ -160,18 +166,17 @@ export class RouterCore {
     return pickLine(lines, this.state.context.language, this.snapshot.language.default);
   }
 
-  private attempt(signal: AbortSignal): (target: RoutingTarget) => Promise<Attempt> {
-    return (target) =>
-      attemptTarget(target, {
-        snapshot: this.snapshot,
-        host: this.ports.host,
-        handoff: this.ports.handoff,
+  private attempt(node: RoutingNode, signal: AbortSignal) {
+    const source = { snapshot: this.snapshot, ports: this.ports, state: this.state };
+    return attemptFor(
+      {
+        ...source,
         ...(this.mode ? { mode: this.mode } : {}),
-        context: this.state.context,
-        path: this.state.path,
-        prepared: (handoffId) => (this.pending = handoffId),
-        signal,
-      });
+        prepared: (id) => (this.pending = id),
+      },
+      node,
+      signal,
+    );
   }
 
   private chainInput(node: RoutingNode, signal: AbortSignal) {
@@ -182,7 +187,7 @@ export class RouterCore {
       recorder: this.recorder,
       defaultTarget,
       finalLine: this.line(BUILT_IN_LINES.end),
-      attempt: this.attempt(signal),
+      attempt: this.attempt(node, signal),
     };
   }
 
@@ -197,7 +202,7 @@ export class RouterCore {
   }
 
   private async route(node: RoutingNode, target: RoutingTarget, signal: AbortSignal) {
-    const attempt = await this.attempt(signal)(target);
+    const attempt = await this.attempt(node, signal)(target);
     if (attempt.ok)
       return this.finish(node, { kind: 'resolved', resolution: attempt.resolution }, signal);
     const cursor = cursorOf(this.state, node.id);
@@ -232,15 +237,7 @@ export class RouterCore {
     }
     this.outcomeValue = { ...resolution, path: [...this.state.path], node: node.id };
     this.phaseValue = handsOn ? 'announcing' : 'ended';
-    recordFinish(this.recorder, {
-      call: this.ports.host.call,
-      outcome: this.outcomeValue,
-      context: this.state.context,
-      turns: this.state.turns,
-      startedAt: this.state.startedAt!,
-      now: this.ports.host.now(),
-      timezone: this.ports.timezone ?? 'UTC',
-    });
+    recordFinish(this.recorder, this.ports, this.state, this.outcomeValue);
     return this.say(finishLine(resolution, this.snapshot, this.state.context.language));
   }
 

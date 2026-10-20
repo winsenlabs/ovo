@@ -4,12 +4,21 @@ import {
   type RouteAgentRef,
   type RouteContext,
   type RoutingHost,
+  type RoutingNode,
   type RoutingReleaseSnapshot,
   type RoutingTarget,
 } from '@winsendotai/ovo-contracts';
-import { queueHandoff, requestHandoff, requestMode, type HandoffEnv } from './begin.ts';
+import {
+  queueHandoff,
+  requestHandoff,
+  requestMode,
+  type HandoffEnv,
+  type HandoffMode,
+} from './begin.ts';
 import { pickLine } from './lines.ts';
 import { pickMember } from './members.ts';
+import type { RouterPorts } from './ports.ts';
+import type { RouterState } from './state.ts';
 
 /** A target the router can finish on: an agent whose graph is prepared, or a spoken end. */
 export type Resolution =
@@ -41,6 +50,9 @@ export interface TargetEnv extends HandoffEnv {
   host: Pick<RoutingHost, 'claim' | 'now'>;
   context: RouteContext;
   path: readonly string[];
+  /** Told of a pool target just before it claims (`RouterPorts.onPool`). */
+  observe?:
+    ((target: Extract<RoutingTarget, { kind: 'pool' }>, context: RouteContext) => void) | undefined;
 }
 
 /** The `ovo_route_*` call variables the target agent receives: the language and each context value. */
@@ -166,6 +178,7 @@ export async function attemptTarget(target: RoutingTarget, env: TargetEnv): Prom
       return agent ? prepare(env, agent) : { ok: false, reason: 'release_unpinned' };
     }
     case 'pool': {
+      env.observe?.(target, context);
       const pick = await pickMember({
         pools: snapshot.pools,
         target,
@@ -190,4 +203,34 @@ export async function attemptTarget(target: RoutingTarget, env: TargetEnv): Prom
       );
     }
   }
+}
+
+/** What the router core hands `attemptFor`: the release, its ports, the route so far and the handoff mode. */
+export interface AttemptSource {
+  snapshot: RoutingReleaseSnapshot;
+  ports: Pick<RouterPorts, 'host' | 'handoff' | 'onPool'>;
+  state: Pick<RouterState, 'context' | 'path' | 'turns'>;
+  mode?: HandoffMode;
+  /** A prepared or begun handoff, the moment it exists (`HandoffEnv.prepared`). */
+  prepared: (handoffId: string) => void;
+}
+
+/** `attemptTarget` for the node being asked, over the route as it stands when each target is tried. */
+export function attemptFor(source: AttemptSource, node: RoutingNode, signal: AbortSignal) {
+  const { snapshot, ports, state, mode, prepared } = source;
+  return (target: RoutingTarget): Promise<Attempt> =>
+    attemptTarget(target, {
+      snapshot,
+      host: ports.host,
+      handoff: ports.handoff,
+      ...(mode ? { mode } : {}),
+      context: state.context,
+      path: state.path,
+      prepared,
+      observe:
+        ports.onPool &&
+        ((pool, context) =>
+          ports.onPool!({ turn: state.turns, node: node.id, target: pool, context })),
+      signal,
+    });
 }
