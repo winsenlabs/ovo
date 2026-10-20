@@ -27,21 +27,38 @@ const NO_RELEASE = '00000000-0000-4000-8000-000000000000';
 const OVERVIEW_PAGE = 100;
 const OVERVIEW_PAGES = 5;
 
+/**
+ * The target a caller is routed by. The console sends a whole pool target (with its `kind` and
+ * `poolId`); the pool is the body's, so those two are accepted and ignored.
+ */
+const ExplainTarget = z
+  .object({
+    kind: z.literal('pool').optional(),
+    poolId: z.uuid().optional(),
+    language: z.enum(['caller', 'any']).default('caller'),
+    products: RoutingPoolTarget.shape.products,
+    skills: z.array(RoutingKey).max(10).default([]),
+  })
+  .strict();
+/** What the call knows so far: the language, and context values (`product` is the common one). */
+const ExplainContext = z
+  .object({
+    language: RouteLanguage.optional(),
+    product: RoutingKey.optional(),
+    values: z.record(RouteContextKey, RoutingKey).default({}),
+  })
+  .strict()
+  .transform(({ product, values, ...rest }) => ({
+    ...rest,
+    values: { ...(product ? { product } : {}), ...values },
+  }));
+
 const ExplainBody = z
   .object({
     poolId: z.uuid().optional(),
     definition: RoutingPoolDefinition.optional(),
-    target: RoutingPoolTarget.omit({ kind: true, poolId: true }).default({
-      language: 'caller',
-      skills: [],
-    }),
-    context: z
-      .object({
-        language: RouteLanguage.optional(),
-        values: z.record(RouteContextKey, RoutingKey).default({}),
-      })
-      .strict()
-      .default({ values: {} }),
+    target: ExplainTarget.default({ language: 'caller', skills: [] }),
+    context: ExplainContext.default({ values: {} }),
     defaultLanguage: RouteLanguage.default('en'),
     at: z.iso.datetime().optional(),
     load: z.enum(['empty', 'live']).default('empty'),
@@ -52,6 +69,10 @@ const ExplainBody = z
   .refine((body) => (body.poolId === undefined) !== (body.definition === undefined), {
     message: 'Give exactly one of poolId or definition',
     path: ['poolId'],
+  })
+  .refine((body) => body.target.poolId === undefined || body.target.poolId === body.poolId, {
+    message: 'The target names another pool than the body',
+    path: ['target', 'poolId'],
   });
 
 /** Capacity of the members that can take a call, or null when none of them is bounded. */
@@ -183,7 +204,13 @@ function registerExplain(input: RoutingRouteDependencies): void {
       const explained: PoolConsideration = {
         ...input.simulator.explainPool({
           pool: snapshot,
-          target: { kind: 'pool', poolId: snapshot.id, ...body.target },
+          target: {
+            kind: 'pool',
+            poolId: snapshot.id,
+            language: body.target.language,
+            skills: body.target.skills,
+            ...(body.target.products ? { products: body.target.products } : {}),
+          },
           context: body.context,
           defaultLanguage: body.defaultLanguage,
           now: body.at ? Date.parse(body.at) : now(),

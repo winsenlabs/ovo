@@ -178,6 +178,48 @@ describe('POST /v1/routing/pools/explain (R4)', () => {
     for (const member of asked.pool.members) expect(member.agent.release.kind).toBe('pinned');
   });
 
+  it('accepts the target as the console sends it (with kind and poolId) and a product in the context', async () => {
+    const simulator = scriptedSimulator();
+    const { call } = await r4Setup({ simulator });
+    const response = await call(
+      'POST',
+      '/v1/routing/pools/explain',
+      {
+        poolId: POOL_SALES,
+        target: {
+          kind: 'pool',
+          poolId: POOL_SALES,
+          language: 'any',
+          products: { values: ['cards'] },
+          skills: [],
+        },
+        context: { language: 'en', product: 'cards' },
+        load: 'empty',
+      },
+      viewer,
+    );
+    expect(response.statusCode, response.body).toBe(200);
+    const asked = simulator.calls.explain[0]!;
+    expect(asked.target).toEqual({
+      kind: 'pool',
+      poolId: POOL_SALES,
+      language: 'any',
+      skills: [],
+      products: { values: ['cards'] },
+    });
+    expect(asked.context).toEqual({ language: 'en', values: { product: 'cards' } });
+    const mismatched = await call(
+      'POST',
+      '/v1/routing/pools/explain',
+      { poolId: POOL_SALES, target: { poolId: POOL_SUPPORT } },
+      viewer,
+    );
+    expect([mismatched.statusCode, mismatched.json().error.code]).toEqual([
+      422,
+      'routing_explain_invalid',
+    ]);
+  });
+
   it('explains an unsaved definition without load, at a given time', async () => {
     const simulator = scriptedSimulator();
     const { call } = await r4Setup({ simulator });

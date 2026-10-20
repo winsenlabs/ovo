@@ -144,6 +144,22 @@ describe('POST /v1/routing/eval-runs (R4)', () => {
     ]);
   });
 
+  it('takes a corpus of several hundred kilobytes, past the app-wide body limit', async () => {
+    const { create } = await ready();
+    const wordy = Array.from({ length: 400 }, (_, index) => ({
+      id: `wordy-${index}`,
+      description: 'x'.repeat(290),
+      turns: Array.from({ length: 5 }, () => ({ kind: 'speech', text: 'y'.repeat(400) })),
+      expect: { status: 'agent' },
+    }));
+    const size = JSON.stringify(wordy).length;
+    expect(size).toBeGreaterThan(300_000);
+    expect(size).toBeLessThan(ROUTING_EVAL_LIMITS.bodyBytes);
+    const response = await create({ cases: wordy });
+    expect(response.statusCode, response.body.slice(0, 200)).toBe(201);
+    expect(response.json().caseCount).toBe(400);
+  });
+
   it('refuses a corpus that takes too long rather than keeping half a scorecard', async () => {
     const never = scriptedSimulator({ scoreRoutingCorpus: () => new Promise(() => undefined) });
     const { create, call } = await ready({ simulator: never });
