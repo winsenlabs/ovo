@@ -26,3 +26,4 @@ export { screenPool, priorityTiers, rankCandidates } from './members.ts';
 export type { PoolAttempt } from './ports.ts';
 export * from './simulate/index.ts';
 export * from './wire/index.ts';
+export * from './eval/index.ts';
