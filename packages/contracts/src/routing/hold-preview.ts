@@ -8,6 +8,8 @@ export interface HoldSegment {
   /** 0 on the first pass, +1 each time the sequence loops back to `loopFrom`. */
   loop: number;
   label: string;
+  /** Set on a clip whose real length is not known; it is drawn `DEFAULT_CLIP_SECONDS` long. */
+  lengthUnknown?: true;
 }
 
 export interface HoldTimelineOptions {
@@ -61,7 +63,15 @@ export function holdTimeline(
         : step.kind === 'line'
           ? `Line: ${lineText(step.line)}`
           : `Clip: ${options.clipName?.(step.assetId) ?? step.assetId.slice(0, 8)}`;
-    segments.push({ kind: step.kind, fromS: round(at), toS: round(toS), loop, label });
+    const lengthUnknown = step.kind === 'clip' && options.clipSeconds?.(step.assetId) === undefined;
+    segments.push({
+      kind: step.kind,
+      fromS: round(at),
+      toS: round(toS),
+      loop,
+      label,
+      ...(lengthUnknown ? { lengthUnknown: true as const } : {}),
+    });
     at = toS;
     index += 1;
     if (index >= policy.steps.length) {

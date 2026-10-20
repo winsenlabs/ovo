@@ -148,7 +148,7 @@ describe('ReleasesTab', () => {
     expect(screen.getByText(/Select a second release/)).toBeTruthy();
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select row ' + IDS.r1 }));
     expect(await screen.findByText('Version 1 to version 3')).toBeTruthy();
-    expect(await screen.findByText(/Added branch intent > support/)).toBeTruthy();
+    expect(await screen.findByText(/Branch support added to node intent/)).toBeTruthy();
   });
   it('shows the never-published state and hides Publish from viewers', async () => {
     routingApi.releases.mockResolvedValue([]);

@@ -1,4 +1,4 @@
-import type { DraftIssue } from '../../lib/derive/routing-anchor';
+import type { DraftIssue } from '../../lib/derive/routing-issue-index';
 
 /** Issues placed on the part of the designer they concern. Severity is text, never colour alone. */
 export function IssueList({

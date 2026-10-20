@@ -3,7 +3,7 @@ import { type RulesEngine, type RulesMatcher } from '@winsendotai/ovo-contracts'
 import { optionsFrom, SelectField } from '../../../components/routing/fields';
 import { Select } from '../../../components/ui/inputs';
 import { blankMatcher } from '../../../lib/derive/routing-defaults';
-import { moveStep, removeStep } from '../../../lib/derive/routing-edit';
+import { moveItem, removeItem } from '../../../lib/derive/list-edit';
 import { MATCHER_LABEL } from '../../../lib/derive/routing-labels';
 import { MatcherEditor } from './matcher-editors';
 
@@ -52,7 +52,7 @@ export function RulesEditor({
                   className="text-button"
                   aria-label={`Move rule ${r + 1} up`}
                   disabled={r === 0}
-                  onClick={() => setRules(moveStep(engine.rules, r, -1))}
+                  onClick={() => setRules(moveItem(engine.rules, r, -1))}
                 >
                   Up
                 </button>
@@ -61,7 +61,7 @@ export function RulesEditor({
                   className="text-button"
                   aria-label={`Move rule ${r + 1} down`}
                   disabled={r === engine.rules.length - 1}
-                  onClick={() => setRules(moveStep(engine.rules, r, 1))}
+                  onClick={() => setRules(moveItem(engine.rules, r, 1))}
                 >
                   Down
                 </button>
@@ -70,7 +70,7 @@ export function RulesEditor({
                   className="text-button"
                   aria-label={`Remove rule ${r + 1}`}
                   disabled={engine.rules.length <= 1}
-                  onClick={() => setRules(removeStep(engine.rules, r, 1))}
+                  onClick={() => setRules(removeItem(engine.rules, r, 1))}
                 >
                   Remove
                 </button>
@@ -98,7 +98,7 @@ export function RulesEditor({
                     className="text-button"
                     aria-label={`Remove rule ${r + 1} condition ${m + 1}`}
                     disabled={rule.when.length <= 1}
-                    onClick={() => replace(r, { ...rule, when: removeStep(rule.when, m, 1) })}
+                    onClick={() => replace(r, { ...rule, when: removeItem(rule.when, m, 1) })}
                   >
                     Remove
                   </button>

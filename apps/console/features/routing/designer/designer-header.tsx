@@ -2,7 +2,7 @@
 import { routingPoolIds } from '@winsendotai/ovo-contracts';
 import { KpiCard, KpiStrip } from '../../../components/ui/kpi';
 import { StatusBadgeV2 } from '../../../components/ui/status-badge';
-import type { IssueIndex } from '../../../lib/derive/routing-anchor';
+import type { IssueIndex } from '../../../lib/derive/routing-issue-index';
 import type { NumberRow, ReleaseSummary, RoutingPointDraft } from '../../../lib/types/routing';
 
 /** Draft, published and unsaved badges for the page header. */

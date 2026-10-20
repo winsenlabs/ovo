@@ -1,16 +1,23 @@
 'use client';
-import { ROUTING_LIMITS, type RoutingBranch, type RoutingNode } from '@winsendotai/ovo-contracts';
+import {
+  ROUTING_LIMITS,
+  addNode,
+  renameBranch,
+  type RoutingBranch,
+  type RoutingNode,
+} from '@winsendotai/ovo-contracts';
 import { TextAreaField, SelectField } from '../../../components/routing/fields';
 import { KeyInput } from '../../../components/routing/key-input';
 import { IssueList } from '../../../components/routing/issue-list';
-import { issuesAt } from '../../../lib/derive/routing-anchor';
+import { issuesAt } from '../../../lib/derive/routing-issue-index';
 import {
   blankBranch,
   blankNode,
   blankTarget,
   freshKey,
 } from '../../../lib/derive/routing-defaults';
-import { addNode, moveStep, renameBranch, replaceNode } from '../../../lib/derive/routing-edit';
+import { editErrorMessage, replaceNode } from '../../../lib/derive/routing-draft-edit';
+import { moveItem } from '../../../lib/derive/list-edit';
 import { useDesigner } from './designer-context';
 import { TargetEditor } from './target-editor';
 
@@ -83,7 +90,7 @@ export function BranchList({
                   }
                   onCommit={(to) => {
                     const result = renameBranch(draft, node.id, branch.key, to);
-                    if ('error' in result) return result.error;
+                    if ('error' in result) return editErrorMessage(draft, result.error);
                     edit(() => result.draft);
                     return undefined;
                   }}
@@ -98,7 +105,7 @@ export function BranchList({
                       edit((d) =>
                         replaceNode(d, node.id, {
                           ...node,
-                          branches: moveStep(node.branches, b, -1),
+                          branches: moveItem(node.branches, b, -1),
                         }),
                       )
                     }
@@ -114,7 +121,7 @@ export function BranchList({
                       edit((d) =>
                         replaceNode(d, node.id, {
                           ...node,
-                          branches: moveStep(node.branches, b, 1),
+                          branches: moveItem(node.branches, b, 1),
                         }),
                       )
                     }

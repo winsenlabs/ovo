@@ -1,7 +1,7 @@
 'use client';
 import { createContext, useContext } from 'react';
 import type { RoutingPointDraft } from '@winsendotai/ovo-contracts';
-import type { IssueIndex } from '../../../lib/derive/routing-anchor';
+import type { IssueIndex } from '../../../lib/derive/routing-issue-index';
 import type { Load } from '../../../lib/data/use-routing-load';
 import type { HumanQueueStatus } from '../../../lib/types/desk';
 import type { QueueRecord } from '../../../lib/types/queues';

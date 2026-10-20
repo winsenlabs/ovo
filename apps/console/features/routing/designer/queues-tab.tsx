@@ -8,7 +8,7 @@ import { EmptyStateV2, InlineAlert } from '../../../components/ui/feedback-v2';
 import { SectionCard } from '../../../components/ui/section-card';
 import { StatusBadgeV2 } from '../../../components/ui/status-badge';
 import { freshKey } from '../../../lib/derive/routing-defaults';
-import { renameQueueKey } from '../../../lib/derive/routing-edit';
+import { renameQueueKey } from '../../../lib/derive/routing-draft-edit';
 import { queueReadiness, queueUsage } from '../../../lib/derive/routing-queues';
 import { useDesigner } from './designer-context';
 

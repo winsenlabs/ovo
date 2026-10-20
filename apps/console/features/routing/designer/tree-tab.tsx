@@ -1,8 +1,9 @@
 'use client';
+import { addNode } from '@winsendotai/ovo-contracts';
 import { useState } from 'react';
 import { InlineAlert } from '../../../components/ui/feedback-v2';
 import { blankNode, freshKey } from '../../../lib/derive/routing-defaults';
-import { addNode } from '../../../lib/derive/routing-edit';
+import { editErrorMessage } from '../../../lib/derive/routing-draft-edit';
 import { useDesigner } from './designer-context';
 import { NodeDrawer } from './node-drawer';
 import { TreeOutline } from './tree-outline';
@@ -31,7 +32,7 @@ export function TreeTab({
       draft.nodes.map((n) => n.id),
     );
     const result = addNode(draft, blankNode(id, draft.defaultTarget));
-    if ('error' in result) return setProblem(result.error);
+    if ('error' in result) return setProblem(editErrorMessage(draft, result.error));
     setProblem(undefined);
     edit(() => result.draft);
     onOpen(id);
