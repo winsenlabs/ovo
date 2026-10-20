@@ -43,10 +43,11 @@ export class VoiceIngress {
     private readonly observe: (event: VoiceEvent) => void,
     private readonly fail: (reason: EndReason) => void,
     vadFactory?: VadAnalyzerFactory,
+    onAudio?: (pcm: Int16Array, rate: 8000 | 16000) => void,
   ) {
     const { sampleRate: rate, encoding } = media.format;
     if (vadFactory && (rate === 8000 || rate === 16000))
-      this.vad = new IngressVad(media.format, vadFactory, observe);
+      this.vad = new IngressVad(media.format, vadFactory, observe, onAudio);
     const bytesPerMs = (rate * (encoding === 'pcm_s16le' ? 2 : 1)) / 1000;
     this.backlog = new IngressBacklog(limits, bytesPerMs);
     this.recovery = new SttRecovery(bytesPerMs * (limits.keepMs ?? DEFAULT_KEEP_MS));

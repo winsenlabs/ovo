@@ -1,7 +1,15 @@
 import { Cap, type TurnDetectorFactory } from '@winsendotai/ovo-contracts';
 import { definePluginV2 } from '@winsendotai/ovo-sdk';
 import { DetectorConfigSchema, type DetectorConfig } from './config.ts';
-export { createModelTurnDetector, modelTurnDetectorPlugin } from './model-detector.ts';
+export {
+  createModelTurnDetector,
+  modelDetectorSchema,
+  modelTurnDetectorPlugin,
+  type ModelDetectorDefaults,
+  type ModelDetectorOptions,
+} from './model-detector.ts';
+export { turnShadowTelemetry, TurnShadowTelemetry } from './model-shadow-telemetry.ts';
+export type { ShadowBasis, TurnShadowEvent } from './model-shadow.ts';
 export {
   ModelDetectorConfigSchema,
   ModelGateConfigSchema,

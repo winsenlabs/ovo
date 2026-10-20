@@ -77,6 +77,11 @@ export interface UserTurnController {
   observe(event: VoiceEvent): void;
   on(fn: (decision: TurnDecision) => void): () => void;
   dispose(): void;
+  /**
+   * Optional: the caller audio frame by frame (8 or 16 kHz mono PCM, from the VAD's copy). The engine
+   * passes it only to a detector that has this method; the detector bounds what it keeps.
+   */
+  audio?(pcm: Int16Array, rate: 8000 | 16000): void;
 }
 
 export const MUTE_RULES = [
