@@ -79,3 +79,9 @@ export function limitReason(
   if (now - (state.startedAt ?? now) > limits.maxRouteSeconds * 1000) return 'max_route_seconds';
   return undefined;
 }
+
+/** A copy of where the route stands: the node being asked, the path so far, the context and the turns. */
+export function progressOf(state: RouterState) {
+  const { node, path, context, turns } = state;
+  return { node, path: [...path], context: { ...context, values: { ...context.values } }, turns };
+}

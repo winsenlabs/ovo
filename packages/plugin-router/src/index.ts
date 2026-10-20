@@ -21,3 +21,9 @@ export * from './engines/index.ts';
 
 /** The distribution catalog's view of this package (milestone M1 registered it): the router behaviour. */
 export const plugins: PluginDefinition[] = [createRouterBehaviorPlugin()];
+export { explainPool, type ExplainPoolInput } from './explain.ts';
+export { screenPool, priorityTiers, rankCandidates } from './members.ts';
+export type { PoolAttempt } from './ports.ts';
+export * from './simulate/index.ts';
+export * from './wire/index.ts';
+export * from './eval/index.ts';

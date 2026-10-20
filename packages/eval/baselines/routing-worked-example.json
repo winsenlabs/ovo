@@ -1,0 +1,307 @@
+{
+  "schema": "ovo.routing-scorecard/1",
+  "engineMode": "recorded",
+  "corpus": {
+    "name": "worked-example",
+    "digest": "b42c8e01569c3c02511139fac907217a0101ab58d6a9855a8c7368702bb69ca4",
+    "cases": 45
+  },
+  "routing": {
+    "pointId": "00000000-0000-4000-8000-0000000000a1",
+    "routingReleaseId": null,
+    "digest": "03deaebdf6c53d13a2f9664a5dfd0ce863fbe307db2694754a2d8d6dad23fd0f"
+  },
+  "totals": {
+    "cases": 45,
+    "passed": 45,
+    "failed": 0
+  },
+  "accuracy": {
+    "overall": {
+      "correct": 45,
+      "total": 45,
+      "rate": 1
+    },
+    "status": {
+      "correct": 42,
+      "total": 42,
+      "rate": 1
+    },
+    "path": {
+      "correct": 12,
+      "total": 12,
+      "rate": 1
+    },
+    "node": {
+      "correct": 6,
+      "total": 6,
+      "rate": 1
+    },
+    "branch": {
+      "correct": 24,
+      "total": 24,
+      "rate": 1
+    },
+    "pool": {
+      "correct": 7,
+      "total": 7,
+      "rate": 1
+    },
+    "member": {
+      "correct": 17,
+      "total": 17,
+      "rate": 1
+    },
+    "agent": {
+      "correct": 16,
+      "total": 16,
+      "rate": 1
+    },
+    "queue": {
+      "correct": 4,
+      "total": 4,
+      "rate": 1
+    },
+    "language": {
+      "correct": 9,
+      "total": 9,
+      "rate": 1
+    }
+  },
+  "fallbackRate": {
+    "correct": 16,
+    "total": 45,
+    "rate": 0.35555555555555557,
+    "byStep": {
+      "default": 10,
+      "human": 1,
+      "end": 2,
+      "limit": 1,
+      "release_default": 2
+    }
+  },
+  "clarifyRate": {
+    "correct": 16,
+    "total": 45,
+    "rate": 0.35555555555555557
+  },
+  "endRate": {
+    "correct": 7,
+    "total": 45,
+    "rate": 0.15555555555555556
+  },
+  "perEngine": {
+    "rules": {
+      "attempts": 116,
+      "matched": 30,
+      "no_match": 86,
+      "low_confidence": 0,
+      "timeout": 0,
+      "error": 0,
+      "disabled": 0
+    },
+    "decision": {
+      "attempts": 8,
+      "matched": 3,
+      "no_match": 4,
+      "low_confidence": 1,
+      "timeout": 0,
+      "error": 0,
+      "disabled": 0
+    },
+    "llm": {
+      "attempts": 42,
+      "matched": 12,
+      "no_match": 9,
+      "low_confidence": 21,
+      "timeout": 0,
+      "error": 0,
+      "disabled": 0
+    },
+    "external": {
+      "attempts": 9,
+      "matched": 1,
+      "no_match": 4,
+      "low_confidence": 1,
+      "timeout": 1,
+      "error": 0,
+      "disabled": 2
+    },
+    "context": {
+      "attempts": 0,
+      "matched": 0,
+      "no_match": 0,
+      "low_confidence": 0,
+      "timeout": 0,
+      "error": 0,
+      "disabled": 0
+    }
+  },
+  "confusion": {
+    "rules": {
+      "labels": ["billing", "callback", "cards", "loans", "person", "quit", "sales", "support"],
+      "matrix": [
+        [1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0, 0, 0],
+        [0, 0, 2, 0, 0, 0, 0, 0],
+        [0, 0, 0, 3, 0, 0, 0, 0],
+        [0, 0, 0, 0, 3, 0, 0, 0],
+        [0, 0, 0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0, 0, 4, 0],
+        [0, 0, 0, 0, 0, 0, 0, 4]
+      ],
+      "correct": 19,
+      "total": 19
+    },
+    "decision": {
+      "labels": ["invoice", "refund"],
+      "matrix": [
+        [2, 0],
+        [0, 1]
+      ],
+      "correct": 3,
+      "total": 3
+    },
+    "llm": {
+      "labels": ["loans", "person", "sales", "support"],
+      "matrix": [
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 4, 0],
+        [0, 0, 0, 2]
+      ],
+      "correct": 8,
+      "total": 8
+    },
+    "external": {
+      "labels": ["refund"],
+      "matrix": [[1]],
+      "correct": 1,
+      "total": 1
+    }
+  },
+  "calibration": [
+    {
+      "engine": "decision",
+      "bucket": "0.7-0.9",
+      "n": 2,
+      "correct": 2
+    },
+    {
+      "engine": "decision",
+      "bucket": "0.9-1",
+      "n": 1,
+      "correct": 1
+    },
+    {
+      "engine": "llm",
+      "bucket": "0.7-0.9",
+      "n": 2,
+      "correct": 2
+    },
+    {
+      "engine": "llm",
+      "bucket": "0.9-1",
+      "n": 6,
+      "correct": 6
+    },
+    {
+      "engine": "external",
+      "bucket": "0.9-1",
+      "n": 1,
+      "correct": 1
+    }
+  ],
+  "perNode": [
+    {
+      "node": "billing",
+      "cases": 6,
+      "decided": 4,
+      "correct": 4,
+      "fallbacks": 3
+    },
+    {
+      "node": "intent",
+      "cases": 45,
+      "decided": 36,
+      "correct": 21,
+      "fallbacks": 16
+    },
+    {
+      "node": "product",
+      "cases": 8,
+      "decided": 6,
+      "correct": 6,
+      "fallbacks": 3
+    }
+  ],
+  "byTag": {
+    "billing": {
+      "cases": 6,
+      "passed": 6
+    },
+    "callback": {
+      "cases": 1,
+      "passed": 1
+    },
+    "clarify": {
+      "cases": 13,
+      "passed": 13
+    },
+    "decision": {
+      "cases": 3,
+      "passed": 3
+    },
+    "dtmf-late": {
+      "cases": 2,
+      "passed": 2
+    },
+    "end": {
+      "cases": 4,
+      "passed": 4
+    },
+    "external": {
+      "cases": 3,
+      "passed": 3
+    },
+    "fallback": {
+      "cases": 17,
+      "passed": 17
+    },
+    "human": {
+      "cases": 12,
+      "passed": 12
+    },
+    "idle": {
+      "cases": 3,
+      "passed": 3
+    },
+    "no-transfer": {
+      "cases": 7,
+      "passed": 7
+    },
+    "queue": {
+      "cases": 1,
+      "passed": 1
+    },
+    "reuse-turn": {
+      "cases": 2,
+      "passed": 2
+    },
+    "sales": {
+      "cases": 9,
+      "passed": 9
+    },
+    "support": {
+      "cases": 7,
+      "passed": 7
+    }
+  },
+  "failures": [],
+  "ms": {
+    "total": 0,
+    "p50": 0,
+    "p95": 0
+  },
+  "label": "routing-worked-example"
+}

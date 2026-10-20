@@ -21,6 +21,15 @@ Package kind: `plugin` (imports only contracts, runtime and zod).
   it with `opening()`, `turn()` and `idle()` and read `recorder.events`.
 - `@winsendotai/ovo-plugin-router/testing`: `fakeRoutingHost`, `fakeSegmentHandoffPort`,
   `scriptedEngines` and `exampleRoutingSnapshot`, for the worker lane and for simulators.
+- `simulateRoute` (R4, `src/simulate/`): runs a scripted caller through a routing snapshot with
+  `RouterCore` over a simulated host (virtual clock, claims ranked like the claim store, never
+  written), a simulated handoff port and scripted decision, LLM and external answers; rules run for
+  real. Offline, deterministic for a fixed clock, and it never dials anything. `explainPool` says why
+  each member of a pool is or is not a candidate and who would be claimed (it shares its eligibility
+  predicate, `screenPool`, with `eligibleTiers`). `scoreRoutingCorpus`, `routingScorecardGate` and
+  `routingCorpusDigest` (`src/eval/`) turn a corpus of cases into a scorecard and a regression gate;
+  the CLI is `pnpm eval:routing`. See [docs/eval/routing.md](../../docs/eval/routing.md).
+- `src/wire/`: the simulation and eval request, result and scorecard shapes (R4 design section 3).
 
 ## How a node decides
 

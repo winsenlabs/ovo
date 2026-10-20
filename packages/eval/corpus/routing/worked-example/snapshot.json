@@ -1,0 +1,650 @@
+{
+  "name": "Main line",
+  "router": {
+    "agentId": "front-desk",
+    "release": {
+      "kind": "pinned",
+      "releaseId": "00000000-0000-4000-8000-0000000000b0"
+    }
+  },
+  "defaultTarget": {
+    "agentId": "sales-en",
+    "release": {
+      "kind": "pinned",
+      "releaseId": "00000000-0000-4000-8000-0000000000b1"
+    }
+  },
+  "language": {
+    "default": "en",
+    "allowed": ["en", "hi", "ta"]
+  },
+  "greeting": {
+    "en": "Welcome to Acme. How can I help you today?",
+    "hi": "Acme में आपका स्वागत है। मैं आपकी क्या मदद कर सकती हूँ?"
+  },
+  "root": "intent",
+  "nodes": [
+    {
+      "id": "intent",
+      "sets": "intent",
+      "ask": {
+        "en": "Is it about buying something new, or an existing account?"
+      },
+      "engines": [
+        {
+          "kind": "rules",
+          "rules": [
+            {
+              "branch": "person",
+              "when": [
+                {
+                  "kind": "caller-id",
+                  "prefixes": ["+919876"]
+                }
+              ]
+            },
+            {
+              "branch": "sales",
+              "when": [
+                {
+                  "kind": "dtmf",
+                  "digits": "1"
+                }
+              ]
+            },
+            {
+              "branch": "support",
+              "when": [
+                {
+                  "kind": "dtmf",
+                  "digits": "2"
+                }
+              ]
+            },
+            {
+              "branch": "billing",
+              "when": [
+                {
+                  "kind": "dtmf",
+                  "digits": "3"
+                }
+              ]
+            },
+            {
+              "branch": "person",
+              "when": [
+                {
+                  "kind": "dtmf",
+                  "digits": "0"
+                }
+              ]
+            },
+            {
+              "branch": "quit",
+              "when": [
+                {
+                  "kind": "dtmf",
+                  "digits": "9"
+                }
+              ]
+            },
+            {
+              "branch": "callback",
+              "when": [
+                {
+                  "kind": "keywords",
+                  "words": ["callback", "call back", "call me back"],
+                  "maxWords": 6
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "llm",
+          "instructions": "Decide why the caller is calling.",
+          "threshold": 0.6,
+          "timeoutMs": 2500,
+          "detectLanguage": true,
+          "generatedClarify": false
+        }
+      ],
+      "branches": [
+        {
+          "key": "sales",
+          "description": "Wants to buy something new: prices, plans, new cards or loans",
+          "target": {
+            "kind": "pool",
+            "poolId": "00000000-0000-4000-8000-0000000000d1",
+            "language": "caller",
+            "skills": []
+          }
+        },
+        {
+          "key": "support",
+          "description": "Has a problem with an existing account, card or loan",
+          "next": "product"
+        },
+        {
+          "key": "billing",
+          "description": "Asks about an invoice or a refund",
+          "next": "billing"
+        },
+        {
+          "key": "person",
+          "description": "Wants to talk to a person",
+          "target": {
+            "kind": "human",
+            "queueId": "desk"
+          }
+        },
+        {
+          "key": "callback",
+          "description": "Asks to be called back later",
+          "target": {
+            "kind": "callback",
+            "inMinutes": 60,
+            "line": {
+              "en": "We will call you back within the hour."
+            }
+          }
+        },
+        {
+          "key": "quit",
+          "description": "Does not want to continue",
+          "target": {
+            "kind": "end",
+            "line": {
+              "en": "No problem. Goodbye."
+            },
+            "disposition": "caller_declined"
+          }
+        }
+      ],
+      "fallback": [
+        {
+          "kind": "reask",
+          "times": 2
+        },
+        {
+          "kind": "human",
+          "queueId": "desk"
+        },
+        {
+          "kind": "default"
+        },
+        {
+          "kind": "end",
+          "line": {
+            "en": "Sorry, I could not connect your call. Goodbye."
+          }
+        }
+      ],
+      "reuseTurn": true
+    },
+    {
+      "id": "product",
+      "sets": "product",
+      "ask": {
+        "en": "Is it about a card or a loan?",
+        "hi": "कार्ड के बारे में है या लोन के बारे में?"
+      },
+      "engines": [
+        {
+          "kind": "rules",
+          "rules": [
+            {
+              "branch": "cards",
+              "when": [
+                {
+                  "kind": "keywords",
+                  "words": ["card", "cards", "कार्ड"],
+                  "maxWords": 12
+                }
+              ]
+            },
+            {
+              "branch": "loans",
+              "when": [
+                {
+                  "kind": "keywords",
+                  "words": ["loan", "loans", "लोन"],
+                  "maxWords": 12
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "llm",
+          "instructions": "Decide which product the caller needs help with.",
+          "threshold": 0.6,
+          "timeoutMs": 2500,
+          "detectLanguage": false,
+          "generatedClarify": true
+        }
+      ],
+      "branches": [
+        {
+          "key": "cards",
+          "description": "A credit or debit card",
+          "target": {
+            "kind": "pool",
+            "poolId": "00000000-0000-4000-8000-0000000000d2",
+            "language": "caller",
+            "products": {
+              "context": "product"
+            },
+            "skills": []
+          }
+        },
+        {
+          "key": "loans",
+          "description": "A loan",
+          "target": {
+            "kind": "pool",
+            "poolId": "00000000-0000-4000-8000-0000000000d2",
+            "language": "caller",
+            "products": {
+              "context": "product"
+            },
+            "skills": []
+          }
+        }
+      ],
+      "fallback": [
+        {
+          "kind": "reask",
+          "times": 1
+        },
+        {
+          "kind": "default",
+          "target": {
+            "kind": "pool",
+            "poolId": "00000000-0000-4000-8000-0000000000d2",
+            "language": "any",
+            "skills": []
+          }
+        },
+        {
+          "kind": "end",
+          "line": {
+            "en": "Sorry, I could not connect your call. Goodbye."
+          }
+        }
+      ],
+      "reuseTurn": true
+    },
+    {
+      "id": "billing",
+      "sets": "billing",
+      "ask": {
+        "en": "Is it about an invoice or a refund?"
+      },
+      "engines": [
+        {
+          "kind": "external",
+          "endpoint": "https://decide.example.com/billing",
+          "credentialId": "billing-router",
+          "timeoutMs": 1500,
+          "threshold": 0.5,
+          "send": {
+            "callerId": false,
+            "turnText": true,
+            "variables": []
+          },
+          "slots": []
+        },
+        {
+          "kind": "decision",
+          "instructions": "Is the caller asking about an invoice or about a refund?",
+          "threshold": 0.7,
+          "timeoutMs": 800
+        }
+      ],
+      "branches": [
+        {
+          "key": "invoice",
+          "description": "A question about an invoice or a bill",
+          "target": {
+            "kind": "agent",
+            "agent": {
+              "agentId": "support-cards",
+              "release": {
+                "kind": "pinned",
+                "releaseId": "00000000-0000-4000-8000-0000000000c1"
+              }
+            }
+          }
+        },
+        {
+          "key": "refund",
+          "description": "Wants money back",
+          "target": {
+            "kind": "agent",
+            "agent": {
+              "agentId": "support-loans",
+              "release": {
+                "kind": "pinned",
+                "releaseId": "00000000-0000-4000-8000-0000000000c3"
+              }
+            }
+          }
+        }
+      ],
+      "fallback": [
+        {
+          "kind": "reask",
+          "times": 1
+        },
+        {
+          "kind": "default",
+          "target": {
+            "kind": "pool",
+            "poolId": "00000000-0000-4000-8000-0000000000d1",
+            "language": "any",
+            "skills": []
+          }
+        }
+      ],
+      "reuseTurn": false
+    }
+  ],
+  "limits": {
+    "maxTurns": 3,
+    "maxRouteSeconds": 90
+  },
+  "idle": {
+    "timeoutMs": 8000,
+    "prompts": [
+      {
+        "en": "Are you still there?"
+      }
+    ]
+  },
+  "transfer": {
+    "targets": [
+      {
+        "key": "colleague",
+        "description": "A human colleague",
+        "destination": {
+          "kind": "human",
+          "queueId": "desk"
+        }
+      }
+    ],
+    "queueAnnouncement": {
+      "en": "Everyone is busy. Please hold."
+    },
+    "confirm": "never",
+    "hold": {
+      "steps": [
+        {
+          "kind": "silence",
+          "seconds": 3
+        }
+      ],
+      "loopFrom": 0,
+      "maxSeconds": 120,
+      "waitForCapacity": true,
+      "onTimeout": [
+        {
+          "kind": "default"
+        }
+      ]
+    },
+    "limits": {
+      "maxTransfers": 3,
+      "returnToPrevious": "refuse",
+      "minRemainingSeconds": 30
+    },
+    "handover": {
+      "summary": true,
+      "transcriptTurns": 6,
+      "capturedVariables": true
+    }
+  },
+  "humanQueues": [
+    {
+      "key": "desk",
+      "queueId": "00000000-0000-4000-8000-0000000000e1",
+      "priority": 0
+    }
+  ],
+  "schemaVersion": 3,
+  "routingPointId": "00000000-0000-4000-8000-0000000000a1",
+  "pools": {
+    "00000000-0000-4000-8000-0000000000d1": {
+      "id": "00000000-0000-4000-8000-0000000000d1",
+      "version": 1,
+      "name": "Sales",
+      "languageFallback": ["en"],
+      "members": [
+        {
+          "id": "sales-en",
+          "agent": {
+            "agentId": "sales-en",
+            "release": {
+              "kind": "pinned",
+              "releaseId": "00000000-0000-4000-8000-0000000000b1"
+            }
+          },
+          "languages": ["en"],
+          "products": [],
+          "skills": [],
+          "priority": 50,
+          "enabled": true
+        },
+        {
+          "id": "sales-hi",
+          "agent": {
+            "agentId": "sales-hi",
+            "release": {
+              "kind": "pinned",
+              "releaseId": "00000000-0000-4000-8000-0000000000b2"
+            }
+          },
+          "languages": ["hi"],
+          "products": [],
+          "skills": [],
+          "priority": 50,
+          "enabled": true
+        },
+        {
+          "id": "sales-ta",
+          "agent": {
+            "agentId": "sales-ta",
+            "release": {
+              "kind": "pinned",
+              "releaseId": "00000000-0000-4000-8000-0000000000b3"
+            }
+          },
+          "languages": ["ta"],
+          "products": [],
+          "skills": [],
+          "priority": 50,
+          "hours": {
+            "timezone": "Asia/Kolkata",
+            "weekly": {
+              "mon": [
+                {
+                  "start": "09:00",
+                  "end": "18:00"
+                }
+              ],
+              "tue": [
+                {
+                  "start": "09:00",
+                  "end": "18:00"
+                }
+              ],
+              "wed": [
+                {
+                  "start": "09:00",
+                  "end": "18:00"
+                }
+              ],
+              "thu": [
+                {
+                  "start": "09:00",
+                  "end": "18:00"
+                }
+              ],
+              "fri": [
+                {
+                  "start": "09:00",
+                  "end": "18:00"
+                }
+              ]
+            },
+            "closed": []
+          },
+          "enabled": true
+        }
+      ]
+    },
+    "00000000-0000-4000-8000-0000000000d2": {
+      "id": "00000000-0000-4000-8000-0000000000d2",
+      "version": 1,
+      "name": "Support",
+      "languageFallback": ["en"],
+      "members": [
+        {
+          "id": "support-cards",
+          "agent": {
+            "agentId": "support-cards",
+            "release": {
+              "kind": "pinned",
+              "releaseId": "00000000-0000-4000-8000-0000000000c1"
+            }
+          },
+          "languages": ["en"],
+          "products": ["cards"],
+          "skills": [],
+          "priority": 60,
+          "enabled": true
+        },
+        {
+          "id": "support-hi",
+          "agent": {
+            "agentId": "support-hi",
+            "release": {
+              "kind": "pinned",
+              "releaseId": "00000000-0000-4000-8000-0000000000c2"
+            }
+          },
+          "languages": ["hi"],
+          "products": ["cards", "loans"],
+          "skills": [],
+          "priority": 50,
+          "enabled": true
+        },
+        {
+          "id": "support-loans",
+          "agent": {
+            "agentId": "support-loans",
+            "release": {
+              "kind": "pinned",
+              "releaseId": "00000000-0000-4000-8000-0000000000c3"
+            }
+          },
+          "languages": ["en"],
+          "products": ["loans"],
+          "skills": [],
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    }
+  },
+  "queues": {
+    "00000000-0000-4000-8000-0000000000e1": {
+      "id": "00000000-0000-4000-8000-0000000000e1",
+      "version": 1,
+      "key": "desk",
+      "priority": 0,
+      "definition": {
+        "kind": "managed",
+        "name": "Desk",
+        "hours": {
+          "timezone": "Asia/Kolkata",
+          "weekly": {
+            "mon": [
+              {
+                "start": "09:00",
+                "end": "18:00"
+              }
+            ],
+            "tue": [
+              {
+                "start": "09:00",
+                "end": "18:00"
+              }
+            ],
+            "wed": [
+              {
+                "start": "09:00",
+                "end": "18:00"
+              }
+            ],
+            "thu": [
+              {
+                "start": "09:00",
+                "end": "18:00"
+              }
+            ],
+            "fri": [
+              {
+                "start": "09:00",
+                "end": "18:00"
+              }
+            ]
+          },
+          "closed": []
+        },
+        "announcement": {
+          "en": "A colleague will take over."
+        },
+        "limits": {
+          "maxWaiting": 100
+        },
+        "assignment": "OPEN_PICKUP",
+        "teamIds": [],
+        "language": "prefer",
+        "offerSeconds": 20,
+        "joinSeconds": 25,
+        "requireOnline": true,
+        "ai": {
+          "mode": "transcribe",
+          "transcribeOperator": true
+        },
+        "onOperatorLeave": "end_call",
+        "returnTargets": [],
+        "wrapUp": {
+          "required": false,
+          "dispositions": []
+        },
+        "context": {
+          "callerId": true,
+          "calledNumber": true,
+          "language": true,
+          "intent": true,
+          "summary": true,
+          "transcriptTurns": 6,
+          "transcriptLink": false,
+          "variables": "declared",
+          "summarize": "agent_only"
+        }
+      }
+    }
+  },
+  "releaseIds": [
+    "00000000-0000-4000-8000-0000000000b0",
+    "00000000-0000-4000-8000-0000000000b1",
+    "00000000-0000-4000-8000-0000000000b2",
+    "00000000-0000-4000-8000-0000000000b3",
+    "00000000-0000-4000-8000-0000000000c1",
+    "00000000-0000-4000-8000-0000000000c2",
+    "00000000-0000-4000-8000-0000000000c3"
+  ]
+}
