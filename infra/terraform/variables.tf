@@ -103,6 +103,20 @@ variable "enable_routing_transfer" {
   default     = false
   description = "OVO_ROUTING_TRANSFER_ENABLED (worker, api): in-call agent transfer on routed calls. Off, routed calls run as Wave 15."
 }
+variable "enable_routing_simulate_live" {
+  type        = bool
+  default     = false
+  description = "OVO_ROUTING_SIMULATE_LIVE_ENABLED (api): admins may run the decision and LLM engines for real in the route tester. They cost provider money. Off, the tester uses scripted answers only."
+}
+variable "routing_simulate_rate_per_minute" {
+  type        = number
+  default     = 30
+  description = "OVO_ROUTING_SIMULATE_RATE_PER_MINUTE (api): route simulations and eval runs one identity may start a minute, 1-600."
+  validation {
+    condition     = var.routing_simulate_rate_per_minute >= 1 && var.routing_simulate_rate_per_minute <= 600 && floor(var.routing_simulate_rate_per_minute) == var.routing_simulate_rate_per_minute
+    error_message = "routing_simulate_rate_per_minute is a whole number from 1 to 600."
+  }
+}
 variable "enable_human_queue" {
   type        = bool
   default     = false

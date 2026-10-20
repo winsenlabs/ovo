@@ -107,6 +107,11 @@ services:
       OVO_ROUTING_EXTERNAL_ENABLED: ${OVO_ROUTING_EXTERNAL_ENABLED:-false}
       # Wave 16 in-call transfer, off by default: status reports it and publish warns while off.
       OVO_ROUTING_TRANSFER_ENABLED: ${OVO_ROUTING_TRANSFER_ENABLED:-false}
+      # Wave 18 route tester: real decision and LLM engines in a simulation (admin only, costs
+      # provider money), off by default, and how many simulations and eval runs one identity
+      # may start a minute.
+      OVO_ROUTING_SIMULATE_LIVE_ENABLED: ${OVO_ROUTING_SIMULATE_LIVE_ENABLED:-false}
+      OVO_ROUTING_SIMULATE_RATE_PER_MINUTE: ${OVO_ROUTING_SIMULATE_RATE_PER_MINUTE:-30}
       # Wave 17 human queues, off by default: /v1/human-queues, /v1/desk and /v1/human-queue/* answer
       # 404 human_queue_disabled. The room server settings are used only with OVO_LIVEKIT_ENABLED.
       OVO_HUMAN_QUEUE_ENABLED: ${OVO_HUMAN_QUEUE_ENABLED:-false}

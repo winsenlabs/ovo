@@ -8,6 +8,7 @@ These are operator procedures, not evidence that a live AWS/carrier environment 
 | Buy and wire an Indian DID (Plivo)                                | [Indian DID](indian-did.md)                                 |
 | Connect a SIP trunk to OVO's sip-gateway (dark until go-live)     | [SIP trunk onboarding](sip-trunk-onboarding.md)             |
 | TCN delivering calls over SIP: questions and v1 limits            | [TCN over SIP](tcn-sip.md)                                  |
+| Design, simulate and publish a routing point in the console       | [Routing designer](routing-designer.md)                     |
 | Send callers to a third-party call centre (webhook queue)         | [Human queue webhook](human-queue-webhook.md)               |
 | Run the OVO operator desk: staff, shifts, troubleshooting         | [Operator desk](operator-desk.md)                           |
 | Deploy the room server for the operator desk (dark until go-live) | [Room server (LiveKit)](livekit-deploy.md)                  |

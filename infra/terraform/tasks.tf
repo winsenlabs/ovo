@@ -19,6 +19,8 @@ resource "aws_ecs_task_definition" "api" {
       { name = "OVO_ROUTING_ENABLED", value = tostring(var.enable_routing) },
       { name = "OVO_ROUTING_EXTERNAL_ENABLED", value = tostring(var.enable_routing_external) },
       { name = "OVO_ROUTING_TRANSFER_ENABLED", value = tostring(var.enable_routing_transfer) },
+      { name = "OVO_ROUTING_SIMULATE_LIVE_ENABLED", value = tostring(var.enable_routing_simulate_live) },
+      { name = "OVO_ROUTING_SIMULATE_RATE_PER_MINUTE", value = tostring(var.routing_simulate_rate_per_minute) },
       { name = "OVO_HUMAN_QUEUE_ENABLED", value = tostring(var.enable_human_queue) },
       { name = "OVO_HUMAN_QUEUE_WEBHOOK_ENABLED", value = tostring(var.human_queue_webhook_enabled) },
       { name = "OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS", value = var.human_queue_context_retention_hours },
