@@ -128,7 +128,7 @@ describe('routing runtime contracts', () => {
       { ...request, variables: { account: '1' } },
       { ...request, releaseId: 'latest' },
       { ...request, reason: 'reroute' },
-      { ...request, kind: 'human' },
+      { ...request, kind: 'human' }, // a human request names a queue, not an agent release
       { ...request, route: { path: Array.from({ length: 33 }, () => 'n') } },
     ])
       expect(SegmentHandoffRequest.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
@@ -192,7 +192,7 @@ describe('routing runtime contracts', () => {
 
 describe('route session events', () => {
   it('appends the four route types and validates each payload', () => {
-    expect(SESSION_EVENT_TYPES.slice(-8, -4)).toEqual([
+    expect(SESSION_EVENT_TYPES.slice(-12, -8)).toEqual([
       'route.node',
       'route.fallback',
       'route.decision',
@@ -249,7 +249,7 @@ describe('route session events', () => {
         { turn: 0, node: 'intent', step: 'transfer', result: 'taken', attempt: 1 },
       ],
       [RouteFallbackPayload, { turn: 0, node: 'intent', step: 'end', result: 'taken', attempt: 0 }],
-      [RouteDecisionPayload, { ...decision, target: 'human' }],
+      [RouteDecisionPayload, { ...decision, target: 'robot' }],
       [
         RouteDecisionPayload,
         {
@@ -260,7 +260,7 @@ describe('route session events', () => {
       [RouteDecisionPayload, { ...decision, path: Array.from({ length: 33 }, () => 'n') }],
       [
         RouteSegmentPayload,
-        { index: 0, role: 'human', agentId: 'a', releaseId: 'r', reason: 'start' },
+        { index: 0, role: 'robot', agentId: 'a', releaseId: 'r', reason: 'start' },
       ],
     ] as const)
       expect(schema.safeParse(bad).success, JSON.stringify(bad)).toBe(false);

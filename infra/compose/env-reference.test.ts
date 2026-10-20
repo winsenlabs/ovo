@@ -136,7 +136,7 @@ describe('Compose log rotation (OPS-17)', () => {
       compose.indexOf('\nvolumes:\n'),
     );
     const names = [...services.matchAll(/\n {2}([a-z0-9-]+):\n/g)].map((match) => match[1]);
-    expect(names).toHaveLength(10);
+    expect(names).toHaveLength(11);
     for (const name of names) {
       const start = services.indexOf(`\n  ${name}:\n`);
       const rest = services.slice(start + 1);

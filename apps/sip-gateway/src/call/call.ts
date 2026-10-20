@@ -14,6 +14,8 @@ import { SessionTimer } from '../sip/session-timer.ts';
 import type { CallHost } from './host.ts';
 import { refreshSession } from './in-dialog.ts';
 import type { CallMedia } from './media.ts';
+import type { Bridge } from './bridge.ts';
+import type { ReferState } from './refer.ts';
 
 export type CallPhase = 'early' | 'confirmed' | 'ending' | 'ended';
 
@@ -21,7 +23,7 @@ export interface EndOptions {
   /** Send BYE (we are hanging up) or not (they did, or the dialog never confirmed). */
   bye: boolean;
   /** Who ended the media stream, for the WS `stop` reason. */
-  stream: 'caller-hangup' | 'stream-ended' | 'gateway';
+  stream: 'caller-hangup' | 'stream-ended' | 'gateway' | 'transferred';
   state?: SipCallState;
   sipCode?: number;
   reason?: string;
@@ -55,6 +57,10 @@ export class Call {
   /** CSeq of the INVITE whose 2xx we are retransmitting until its ACK. */
   awaitingAck?: number;
   refreshing = false;
+  /** The REFER in flight (one at a time), if any. */
+  refer?: ReferState;
+  /** The bridged handoff this call is a leg of, once started (stretch S1). */
+  bridge?: Bridge;
   sessionSeconds = 0;
   /** CANCEL, drain or a host hangup before the dialog confirmed. */
   readonly abort = new AbortController();
@@ -204,6 +210,9 @@ export class Call {
     this.phase = 'ending';
     this.endReason = reason;
     this.abort.abort();
+    // Settle before the timers stop: the far end's BYE often beats a REFER's last NOTIFY.
+    this.refer?.callEnded(reason);
+    this.bridge?.legEnded(this);
     this.timers.stopAll();
     this.sessionTimer.stop();
     if (!wasConfirmed) this.onEarlyEnd?.(reason, options);

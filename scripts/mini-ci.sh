@@ -79,6 +79,39 @@ eval_gate() {
   return $status
 }
 
+# Wave 17: the human-room e2e runs against a real LiveKit server (brew install livekit, Apache-2.0),
+# started by the tests on loopback and free ports. With none found the gate fails rather than skip.
+room_bin=
+room_server() {
+  local found
+  found=$(scripts/ops/ensure-livekit-test-server.sh --install) || {
+    echo "$found" >&2
+    return 1
+  }
+  room_bin=${found#bin }
+  echo "livekit-server: $room_bin"
+}
+
+# The live-path e2e, with the room files held to "no skips" once a room server was found.
+live_path() {
+  local report status
+  report=$(mktemp)
+  env -u OVO_TEST_SIPP OVO_E2E_LIVEKIT_BIN="$room_bin" OVO_TEST_POSTGRES_URL="$ci_url" \
+    pnpm test:live-path --reporter=default --reporter=json --outputFile="$report"
+  status=$?
+  if [[ -n $room_bin ]]; then
+    node -e '
+      const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+      const rooms = r.testResults.filter((file) => /human-room-/.test(file.name));
+      const skipped = rooms.flatMap((file) => file.assertionResults).filter((t) => t.status !== "passed");
+      console.log(`human-room e2e: ${rooms.length} files, ${skipped.length} not passed`);
+      process.exit(rooms.length >= 4 && skipped.length === 0 ? 0 : 1);
+    ' "$report" || status=1
+  fi
+  rm -f "$report"
+  return $status
+}
+
 echo '::: install (frozen lockfile)'
 pnpm install --frozen-lockfile || { echo '::: install FAILED'; exit 1; }
 
@@ -91,7 +124,8 @@ step 'format check' pnpm format:check
 step 'unit tests' env "${postgres_vars[@]/#/-u}" -u OVO_TEST_SIPP pnpm test
 step 'postgres suites' postgres_suites
 step 'eval offline gate' eval_gate
-step 'live-path e2e' env -u OVO_TEST_SIPP OVO_TEST_POSTGRES_URL="$ci_url" pnpm test:live-path
+step 'livekit-server' room_server
+step 'live-path e2e' live_path
 # Wave 11: SIPp against the native sip-gateway on loopback (its scenarios, then the full SIP path
 # through the media gateway and a worker). The build host may not have SIPp (brew install sipp).
 if sipp_bin=$(command -v sipp); then

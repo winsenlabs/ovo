@@ -4,6 +4,7 @@ import {
   RoutingReleaseSnapshot,
   type PinnedAgentRef,
   type PoolSnapshot,
+  type QueueSnapshot,
   type RouteAgentRef,
   type RoutingIssue,
   type RoutingPoint,
@@ -18,6 +19,7 @@ import {
   resolveRouting,
   type AudioLookup,
   type PoolLookup,
+  type QueueLookup,
   type RoutingReleaseStore,
   type RoutingResolution,
 } from './routing-publish-resolve.ts';
@@ -30,6 +32,7 @@ export interface RoutingPublishContext extends Omit<
   routing: Pick<RoutingService, 'releases'>;
   pool: PoolLookup;
   audio: AudioLookup;
+  queue?: QueueLookup;
 }
 
 /**
@@ -46,6 +49,7 @@ export async function validateRoutingDraft(
     store: context.store,
     pool: context.pool,
     audio: context.audio,
+    queue: context.queue,
   });
   const issues = [
     ...routingDraftIssues(draft),
@@ -59,7 +63,8 @@ export async function validateRoutingDraft(
  * the release it resolved to (transfer destinations included), every named pool with its members
  * pinned, every hold clip pinned by sha256, the de-duplicated release ids, and the sha256 digest
  * over its canonical JSON the release is stored under. A draft with a transfer catalogue freezes
- * as schema version 2. Only called once validation found no errors.
+ * as schema version 2, and one that binds human queues as version 3 with each queue's definition
+ * pinned by value (staffing stays live). Only called once validation found no errors.
  */
 export function buildRoutingSnapshot(
   pointId: string,
@@ -102,11 +107,24 @@ export function buildRoutingSnapshot(
         })),
       };
   }
+  const queues: Record<string, QueueSnapshot> = {};
+  for (const binding of draft.humanQueues ?? []) {
+    const found = resolution.queues.get(binding.queueId);
+    if (found && found !== 'deleted')
+      queues[binding.queueId] = {
+        id: binding.queueId,
+        version: found.version,
+        key: binding.key,
+        priority: binding.priority,
+        definition: found.definition,
+      };
+  }
   const releaseIds = [...new Set([...pinned.values()].map((ref) => ref.release.releaseId))];
   const transfer = draft.transfer && pinnedTransfer(draft.transfer, resolution, pin);
   const snapshot = RoutingReleaseSnapshot.parse({
     ...draft,
-    schemaVersion: transfer ? 2 : 1,
+    schemaVersion: draft.humanQueues?.length ? 3 : transfer ? 2 : 1,
+    queues,
     ...(transfer ? { transfer } : {}),
     routingPointId: pointId,
     router: pin(draft.router),

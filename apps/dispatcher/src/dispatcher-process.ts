@@ -24,6 +24,7 @@ import {
   positiveInteger,
 } from './dispatcher-capacity.ts';
 import { complianceDispositionTask } from './compliance-dispositions.ts';
+import { humanQueueOperationsConfig } from './human-queue-config.ts';
 import { DispatcherLoop, type DispatcherTask } from './dispatcher-loop.ts';
 import { publishInboundReadiness } from './inbound-readiness-store.ts';
 import { releaseTerminalCalls } from './terminal-calls.ts';
@@ -97,6 +98,7 @@ export async function openDispatcherProcess(input: {
         .split(',')
         .map((x) => x.trim())
         .filter(Boolean),
+      ...humanQueueOperationsConfig(env),
     },
   });
   const ledgerPlugin = createCostLedgerPlugin();

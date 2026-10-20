@@ -174,11 +174,14 @@ export async function apiRequest<T>(
   if (!response.ok) {
     const error =
       payload && typeof payload === 'object' && 'error' in payload ? payload.error : undefined;
+    // Routing-style errors carry their extras (`issues`, `inUseBy`, `current`) beside `error`.
+    const { error: _error, ...extras } =
+      payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
     throw new ApiError(
       response.status,
       error?.code ?? 'request_failed',
       error?.message ?? `Request failed (${response.status}).`,
-      error?.details,
+      error?.details ?? (Object.keys(extras).length ? extras : undefined),
     );
   }
   return { data: payload as T, etag: response.headers.get('etag') ?? undefined };

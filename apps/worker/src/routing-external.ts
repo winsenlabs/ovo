@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import {
   ExternalDecisionResponse,
   ROUTE_DECISION_SCHEMA,
@@ -13,6 +13,7 @@ import {
   type SecureNetworkDependencies,
 } from '@winsendotai/ovo-plugin-tools-http';
 import { ConnectorPolicyError } from '@winsendotai/ovo-plugin-kit';
+import { webhookSignature } from '@winsendotai/ovo-session-host';
 
 /** The most an external decision webhook may answer. */
 export const EXTERNAL_DECISION_MAX_BYTES = 16 * 1024;
@@ -32,15 +33,11 @@ export interface ExternalRouteOptions {
   requestId?: () => string;
 }
 
-/** `v1=<hex HMAC-SHA256(secret, "<timestamp>.<requestId>.<body>")>` (routing design 7.6). */
-export function routeDecisionSignature(
-  secret: string,
-  timestamp: string,
-  requestId: string,
-  body: string,
-): string {
-  return `v1=${createHmac('sha256', secret).update(`${timestamp}.${requestId}.${body}`).digest('hex')}`;
-}
+/**
+ * `v1=<hex HMAC-SHA256(secret, "<timestamp>.<requestId>.<body>")>` (routing design 7.6): the one
+ * scheme every OVO webhook is signed with (`webhookSignature` in the session host).
+ */
+export const routeDecisionSignature = webhookSignature;
 
 /**
  * Asks an external decision engine for a branch (`ovo.route-decision/1`): one signed HTTPS POST

@@ -59,15 +59,22 @@ export function transferDraftIssues(draft: RoutingPointDraft, add: Add): void {
         `No node ${target.destination.node}`,
       );
   });
-  for (const { path, hold, key } of transferHolds(policy)) holdIssues(path, hold, keys, add, key);
+  const humanQueues = (draft.humanQueues?.length ?? 0) > 0;
+  for (const { path, hold, key } of transferHolds(policy))
+    holdIssues(path, hold, keys, add, key, { humanQueues });
 }
 
-function holdIssues(
+/**
+ * `queue`: the hold belongs to a human queue (R3), where `return` is meaningful. `humanQueues`: the
+ * draft binds queues, so `human` steps are real rather than skipped (and `queue` implies it).
+ */
+export function holdIssues(
   path: RoutingPath,
   hold: HoldPolicy,
   keys: ReadonlySet<string>,
   add: Add,
   key?: string,
+  mode: { queue?: boolean; humanQueues?: boolean } = {},
 ): void {
   if (hold.loopFrom >= hold.steps.length)
     add(
@@ -91,14 +98,14 @@ function holdIssues(
         step.key === key ? `A hold cannot time out into its own target` : `No target ${step.key}`,
       );
     // The router's handoff also holds with the point-level policy, and it has no agent to return to.
-    if (step.kind === 'return' && key === undefined)
+    if (step.kind === 'return' && key === undefined && !mode.queue)
       add(
         'routing_transfer_return_unused',
         at,
         "The router's own handoff skips return; it applies to agent transfers only",
         'warning',
       );
-    if (step.kind === 'human')
+    if (step.kind === 'human' && !mode.queue && !mode.humanQueues)
       add(
         'routing_transfer_human_unavailable',
         at,

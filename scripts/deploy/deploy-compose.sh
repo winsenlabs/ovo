@@ -13,6 +13,9 @@
 #      with OVO_SIP_ENABLED=true the sip-gateway (profile `sip`) follows, recreated only when its
 #      image changed, because a restart drops every live SIP call; it has no reload, so a change to
 #      its environment, trunk file or secrets reaches it only with --recreate-sip-gateway;
+#      with OVO_LIVEKIT_ENABLED=true the room server (profile `livekit`) follows the same way: its
+#      config is rendered from the environment first, and it is recreated only when its image
+#      changed or with --recreate-livekit, because a restart drops every live human call;
 #   8. verify-compose.sh, plus ops/verify-live.sh when the live flags are on; the history entry
 #      becomes `status=ok` (`unverified` with --skip-verify), or `failed` if any step failed.
 # --rollback redeploys the newest ok or unverified entry whose revision and pins differ from the
@@ -40,6 +43,9 @@ Usage: scripts/deploy/deploy-compose.sh [options]
                         Drain and recreate the sip-gateway even when its image is unchanged, to
                         apply a change to its environment, sip-trunks.json or secrets (drops the
                         live SIP calls left after the drain). Needs OVO_SIP_ENABLED=true.
+  --recreate-livekit    Drain and recreate the room server even when its image is unchanged, to apply
+                        a change to its rendered config or key pair (drops the live human calls).
+                        Needs OVO_LIVEKIT_ENABLED=true.
   --skip-verify         Skip the post-deploy verification.
   --allow-dirty         Deploy a working tree with uncommitted changes.
   --dry-run             Print every mutating command instead of running it.
@@ -55,6 +61,7 @@ DRAIN_TIMEOUT=600
 SKIP_VERIFY=false
 ALLOW_DIRTY=false
 RECREATE_SIP=false
+RECREATE_LIVEKIT=false
 while (($#)); do
   case $1 in
     --env-file) ENV_FILE=$2; shift 2 ;;
@@ -67,6 +74,7 @@ while (($#)); do
     --drain-timeout) DRAIN_TIMEOUT=$2; shift 2 ;;
     --skip-verify) SKIP_VERIFY=true; shift ;;
     --recreate-sip-gateway) RECREATE_SIP=true; shift ;;
+    --recreate-livekit) RECREATE_LIVEKIT=true; shift ;;
     --allow-dirty) ALLOW_DIRTY=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
     -h | --help) usage; exit 0 ;;
@@ -98,6 +106,20 @@ if [[ $(env_value "$ENV_FILE" OVO_SIP_ENABLED) == true ]]; then
   export COMPOSE_PROFILES=$profiles
 elif [[ $RECREATE_SIP == true ]]; then
   die '--recreate-sip-gateway needs OVO_SIP_ENABLED=true; with SIP off, stop the service instead (docs/runbooks/sip-trunk-onboarding.md)' 2
+fi
+
+# Wave 17: the room server (managed human queues) follows the same rule as SIP: its compose profile
+# is added only when the environment enables it, so a default deploy never starts it and opens no
+# port. Its image is the public one, pinned in compose.yaml (or OVO_LIVEKIT_IMAGE), not built here.
+LIVEKIT_ENABLED=false
+LIVEKIT_CONFIG=$(dirname "$COMPOSE_FILE")/livekit.yaml
+if [[ $(env_value "$ENV_FILE" OVO_LIVEKIT_ENABLED) == true ]]; then
+  LIVEKIT_ENABLED=true
+  profiles=${COMPOSE_PROFILES:-$(env_value "$ENV_FILE" COMPOSE_PROFILES)}
+  [[ ,$profiles, == *,livekit,* ]] || profiles=${profiles:+$profiles,}livekit
+  export COMPOSE_PROFILES=$profiles
+elif [[ $RECREATE_LIVEKIT == true ]]; then
+  die '--recreate-livekit needs OVO_LIVEKIT_ENABLED=true; with the room server off, stop the service instead (docs/runbooks/livekit-deploy.md)' 2
 fi
 
 # History lines: STAMP ref=REVISION images=PIN_FILE|built previous=REVISION status=STATUS
@@ -169,6 +191,18 @@ sip_gateway_image_changed() {
   [[ -z $running || -z $wanted || $running != "$wanted" ]]
 }
 
+# True when the room server must be (re)created: it is not running yet, or its container runs an
+# image other than the one the environment now pins (a new tag of the same image is no change).
+livekit_image_changed() {
+  local container running wanted
+  container=$(compose ps -q livekit 2>/dev/null || true)
+  [[ -n $container ]] || return 0
+  wanted=$(env_value "$ENV_FILE" OVO_LIVEKIT_IMAGE)
+  running=$(docker inspect --format '{{.Image}}' "$container" 2>/dev/null || true)
+  wanted=$(docker image inspect --format '{{.Id}}' "${wanted:-livekit/livekit-server:v1.13.9}" 2>/dev/null || true)
+  [[ -z $running || -z $wanted || $running != "$wanted" ]]
+}
+
 mark_history() {
   local tmp=$HISTORY.tmp.$$
   awk -v id="$stamp" -v status="$1" '$1 == id { sub(/ status=[^ ]*$/, " status=" status) } { print }' \
@@ -229,6 +263,7 @@ if [[ -n $REF || $PULL == true ]]; then
     [[ $SKIP_VERIFY != true ]] || forward+=(--skip-verify)
     [[ $ALLOW_DIRTY != true ]] || forward+=(--allow-dirty)
     [[ $RECREATE_SIP != true ]] || forward+=(--recreate-sip-gateway)
+    [[ $RECREATE_LIVEKIT != true ]] || forward+=(--recreate-livekit)
     OVO_DEPLOY_PREVIOUS_REF=$previous_ref exec bash "$OVO_ROOT/scripts/deploy/deploy-compose.sh" "${forward[@]}"
   fi
 fi
@@ -264,6 +299,17 @@ if [[ $SIP_ENABLED == true && $DRY_RUN != true ]]; then
       die "OVO_SIP_ENABLED=true needs $key; scripts/bootstrap-compose.sh generates it when absent" 2
   done
 fi
+if [[ $LIVEKIT_ENABLED == true && $DRY_RUN != true ]]; then
+  for key in OVO_LIVEKIT_API_KEY OVO_LIVEKIT_API_SECRET; do
+    [[ -n $(env_value "$ENV_FILE" "$key") ]] ||
+      die "OVO_LIVEKIT_ENABLED=true needs $key; scripts/bootstrap-compose.sh generates it when absent" 2
+  done
+fi
+if [[ $LIVEKIT_ENABLED == true ]]; then
+  # The key pair is generated by the bootstrap; the config file carries it, so it is owner-only
+  # and git-ignored. Docker would create a directory in place of a missing bind-mounted file.
+  run node "$OVO_ROOT/scripts/deploy/render-livekit-config.mjs" --env-file "$ENV_FILE" --out "$LIVEKIT_CONFIG"
+fi
 run compose config --quiet
 
 step 'images'
@@ -273,6 +319,7 @@ if [[ -n $IMAGES ]]; then
     set_env_value "$ENV_FILE" "${line%%=*}" "${line#*=}"
   done <"$IMAGES"
   run compose pull "${APP_SERVICES[@]}"
+  [[ $LIVEKIT_ENABLED != true ]] || run compose pull livekit
 elif [[ $BUILD == true ]]; then
   say 'building on this host; prefer scripts/deploy/build-images.sh on the build machine'
   # A build tags the images as named in the environment, so registry pins go back to :local.
@@ -282,9 +329,11 @@ elif [[ $BUILD == true ]]; then
     [[ -z $value || $value == "$local_image" ]] || set_env_value "$ENV_FILE" "$key" "$local_image"
   done
   run compose build "${APP_SERVICES[@]}"
+  [[ $LIVEKIT_ENABLED != true ]] || run compose pull livekit
 else
   say 'keeping the image pins already in the Compose environment'
   run compose pull "${APP_SERVICES[@]}"
+  [[ $LIVEKIT_ENABLED != true ]] || run compose pull livekit
 fi
 
 step 'backing services'
@@ -316,7 +365,25 @@ if [[ $SIP_ENABLED == true ]]; then
       say 'a change to its environment, sip-trunks.json or secrets needs --recreate-sip-gateway'
     fi
   fi
-  # Starts anything still missing without recreating the sip-gateway for a configuration change.
+fi
+if [[ $LIVEKIT_ENABLED == true ]]; then
+  if [[ $RECREATE_LIVEKIT == true ]]; then
+    step 'livekit (--recreate-livekit: started with its freshly rendered configuration)'
+    run compose up -d --no-deps --wait --force-recreate livekit
+  else
+    step 'livekit (recreated only when its image changed: a restart drops live human calls)'
+    if [[ $DRY_RUN == true ]]; then
+      say 'dry run: would recreate livekit only if its image changed'
+    elif livekit_image_changed; then
+      run compose up -d --no-deps --wait --force-recreate livekit
+    else
+      say 'livekit image unchanged: left running with its calls and its old configuration'
+      say 'a change to its key pair or ports needs --recreate-livekit'
+    fi
+  fi
+fi
+if [[ $SIP_ENABLED == true || $LIVEKIT_ENABLED == true ]]; then
+  # Starts anything still missing without recreating a gateway or room server for a configuration change.
   run compose up -d --wait --remove-orphans --no-recreate
 else
   run compose up -d --wait --remove-orphans

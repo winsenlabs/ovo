@@ -79,14 +79,27 @@ const NodeHandoff = z
   })
   .strict();
 
+/** R3: a person, through the human queue bound as `queueId` in the release (`humanQueues`). */
+const HumanHandoff = z
+  .object({
+    kind: z.literal('human'),
+    reason: z.enum(['route', 'transfer']),
+    queueId: RoutingKey,
+    variables: HandoffVariables,
+    route: HandoffRoute.optional(),
+    transfer: HandoffTransferMeta.optional(),
+  })
+  .strict();
+
 /**
  * Hand the call to another agent release (or back to the router) on the same carrier leg and media
- * link. R3 adds `kind: 'human'` to this union.
+ * link, or (R3) to a person.
  */
 export const SegmentHandoffRequest = z.discriminatedUnion('kind', [
   AgentHandoff,
   QueueHandoff,
   NodeHandoff,
+  HumanHandoff,
 ]);
 export type SegmentHandoffRequest = z.infer<typeof SegmentHandoffRequest>;
 
@@ -98,7 +111,17 @@ export type HandoffPrepareFailure =
   | 'call_ended'
   | 'busy'
   /** R2: `prepare()` given a kind other than `agent`. */
-  | 'unsupported';
+  | 'unsupported'
+  /** R3 human queues. */
+  | 'queue_unknown'
+  | 'queue_closed'
+  | 'queue_unavailable'
+  | 'queue_full'
+  | 'no_operators'
+  | 'webhook_rejected'
+  | 'webhook_failed'
+  | 'ticket_expired'
+  | 'carrier_refused';
 export type HandoffPrepareResult =
   { ok: true; handoffId: string } | { ok: false; reason: HandoffPrepareFailure };
 export type HandoffBeginFailure =

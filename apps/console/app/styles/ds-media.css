@@ -110,11 +110,16 @@
   background: var(--surface-2);
   text-align: start;
 }
-.ds-conversation-list li.speaker-agent .ds-conversation-bubble {
+.ds-conversation-list li.speaker-agent .ds-conversation-bubble,
+.ds-conversation-list li.speaker-operator .ds-conversation-bubble {
   background: var(--accent-soft);
+}
+.ds-conversation-list li.speaker-operator {
+  justify-content: flex-end;
 }
 .ds-conversation-list li.interim .ds-conversation-bubble {
   opacity: 0.6;
+  font-style: italic;
 }
 .ds-conversation-list li.unplayed .ds-conversation-bubble {
   border: 1px dashed var(--border-strong);
@@ -134,7 +139,8 @@
    step darker-on-light-theme / lighter-on-dark-theme token that clears it, and only the agent
    bubble needs the override since the caller bubble's plain `--surface-2` background already
    passes with `--text-3`. */
-.ds-conversation-list li.speaker-agent .ds-conversation-meta {
+.ds-conversation-list li.speaker-agent .ds-conversation-meta,
+.ds-conversation-list li.speaker-operator .ds-conversation-meta {
   color: var(--text-2);
 }
 .ds-conversation-speaker {

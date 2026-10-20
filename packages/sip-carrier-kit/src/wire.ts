@@ -193,16 +193,42 @@ export type SipHangupRequest = z.infer<typeof SipHangupRequestSchema>;
 export const SipHangupResponseSchema = z.object({ result: z.enum(['ended', 'already_ended']) });
 export type SipHangupResponse = z.infer<typeof SipHangupResponseSchema>;
 
+/**
+ * The destination of a handoff. `sip` is a bare `sip:`/`sips:` URI (no `?headers`, which would let
+ * a caller of this API add headers the allow-list never saw); context rides in `headers`: `X-`
+ * names only, printable-ASCII values, which the gateway percent-encodes into the Refer-To URI.
+ */
+export const SipHandoffTargetSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('phone'), e164 }),
+  z.strictObject({
+    kind: z.literal('sip'),
+    uri: text(1024).regex(
+      /^sips?:[^\s<>"?&#;]+(?:;[^\s<>"?&#]+)*$/i,
+      'expected a sip: or sips: URI',
+    ),
+    headers: z
+      .record(
+        z.string().regex(/^[Xx]-[A-Za-z0-9-]{1,60}$/),
+        z.string().regex(/^[\x20-\x7e]{0,256}$/),
+      )
+      .refine((headers) => Object.keys(headers).length <= SIP_MAX_FORWARDED_HEADERS)
+      .optional(),
+  }),
+]);
+export type SipHandoffTarget = z.infer<typeof SipHandoffTargetSchema>;
+
 export const SipHandoffRequestSchema = z.strictObject({
   carrierCallId: callId,
   requestId: callId,
-  target: z.strictObject({ kind: z.literal('phone'), e164 }),
+  target: SipHandoffTargetSchema,
 });
 export type SipHandoffRequest = z.infer<typeof SipHandoffRequestSchema>;
 
+/** `unknown`: REFER was accepted but no final sipfrag arrived (`refer_no_notify`); the leg is probably gone. */
 export const SipHandoffResponseSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('confirmed'), receiptId: text(256) }),
   z.object({ kind: z.literal('rejected'), reason: text(256), retryable: z.boolean() }),
+  z.object({ kind: z.literal('unknown'), reason: text(256) }),
 ]);
 export type SipHandoffResponse = z.infer<typeof SipHandoffResponseSchema>;
 

@@ -3,5 +3,7 @@ export * from './frame-aggregator.ts';
 export * from './g711.ts';
 export * from './pcm.ts';
 export * from './polyphase-resampler.ts';
+export * from './reframe.ts';
 export * from './silence.ts';
+export * from './tone.ts';
 export * from './wav-decode.ts';

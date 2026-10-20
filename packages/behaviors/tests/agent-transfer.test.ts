@@ -217,6 +217,27 @@ describe('transfer_to_agent: an accepted transfer', () => {
       error: expect.stringMatching(/Nobody/),
     });
   });
+
+  // R3: the codes a human queue's gates refuse with, each told so the model can offer a callback.
+  it.each([
+    ['queue_closed', /closed right now/],
+    ['no_operators', /No colleague is free/],
+    ['queue_full', /No colleague is free/],
+    ['queue_unavailable', /cannot be reached/],
+    ['queue_unknown', /cannot be reached/],
+  ] as const)('a human queue refusing %s is told to the model', async (reason, text) => {
+    const port = transferPort({ result: () => ({ ok: false, reason }) });
+    const t = transferAgent({ port, replies: [transferCall('billing')] });
+    await t.turn('a person please');
+    expect(t.model!.requests[1]!.results[0]).toMatchObject({
+      state: 'failed',
+      error: expect.stringMatching(text),
+    });
+    expect(t.model!.requests[1]!.results[0]).toMatchObject({
+      error: expect.stringMatching(/callback|help the caller/i),
+    });
+    expect(port.commits).toEqual([]);
+  });
 });
 
 describe('transfer_to_agent: the confirm gate', () => {

@@ -37,6 +37,7 @@ describe('operations runtime', () => {
           permittedFromNumbers: ['+14155550101'],
           liveEnabled: false,
           routingEnabled: false,
+          humanQueueEnabled: false,
         },
         handoffProvider: 'unavailable',
       });
@@ -109,6 +110,27 @@ describe('operations runtime', () => {
         environment: { OVO_ROUTING_ENABLED: 'true' },
       });
       expect(runtime.service.config).toMatchObject({ routingEnabled: false });
+    },
+  );
+
+  databaseTest(
+    'reads OVO_HUMAN_QUEUE_ENABLED into the runtime config unless the API overrides it',
+    async () => {
+      const organizationId = randomUUID();
+      runtime = await createOperationsRuntime({
+        organizationId,
+        databaseUrl,
+        environment: { OVO_HUMAN_QUEUE_ENABLED: 'true' },
+      });
+      expect(runtime.config.operations.humanQueueEnabled).toBe(true);
+      await runtime.close();
+      runtime = await createOperationsRuntime({
+        organizationId,
+        databaseUrl,
+        humanQueueEnabled: false,
+        environment: { OVO_HUMAN_QUEUE_ENABLED: 'true' },
+      });
+      expect(runtime.config.operations.humanQueueEnabled).toBe(false);
     },
   );
 });

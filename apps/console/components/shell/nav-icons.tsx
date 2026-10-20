@@ -23,9 +23,14 @@ export type NavIconName =
   | 'server'
   | 'flask'
   | 'user'
-  | 'users';
+  | 'users'
+  | 'headset'
+  | 'queue';
 
 const PATHS: Record<NavIconName, string> = {
+  headset:
+    'M3 9.5V8a5 5 0 0 1 10 0v1.5M3 9.5h1.5v3H3.5a1 1 0 0 1-1-1v-1a1 1 0 0 1 .5-.9Zm10 0h-1.5v3h1a1 1 0 0 0 1-1v-1a1 1 0 0 0-.5-.9ZM11.5 12.5v.3a1.7 1.7 0 0 1-1.7 1.7H8',
+  queue: 'M2.5 4h11M2.5 8h11M2.5 12h6.5M12 11v2.5M10.8 12.3h2.4',
   home: 'M2 8.5 8 3l6 5.5M4 7v6.5h8V7M6.5 13.5V10h3v3.5',
   agents: 'M8 2.5a2 2 0 1 1 0 4 2 2 0 0 1 0-4ZM3.5 13c.5-3 2-4.5 4.5-4.5s4 1.5 4.5 4.5',
   plug: 'M6 2v3M10 2v3M4.5 5h7v2.5a3.5 3.5 0 0 1-7 0V5ZM8 10.5V14',

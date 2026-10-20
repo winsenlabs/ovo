@@ -25,6 +25,7 @@ export const navigation: readonly NavItem[] = [
 
   { href: '/calls', label: 'Calls', group: 'Calls', icon: 'phone' },
   { href: '/operations/callbacks', label: 'Callbacks', group: 'Calls', icon: 'callback' },
+  { href: '/desk', label: 'Operator desk', group: 'Calls', icon: 'headset' },
   { href: '/operations/handoffs', label: 'Handoffs', group: 'Calls', icon: 'handoff' },
 
   { href: '/campaigns', label: 'Campaigns', group: 'Outbound', icon: 'megaphone' },
@@ -32,6 +33,7 @@ export const navigation: readonly NavItem[] = [
   { href: '/operations/compliance', label: 'Compliance', group: 'Outbound', icon: 'shield' },
 
   { href: '/operations/inbound', label: 'Routes & overflow', group: 'Inbound', icon: 'inbound' },
+  { href: '/operations/queues', label: 'Human queues', group: 'Inbound', icon: 'queue' },
 
   { href: '/performance', label: 'Performance', group: 'Insights', icon: 'activity' },
   { href: '/costs', label: 'Costs & budgets', group: 'Insights', icon: 'wallet' },

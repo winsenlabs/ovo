@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./background-tasks": "./src/background-tasks.ts"
+    "./background-tasks": "./src/background-tasks.ts",
+    "./testing": "./src/human-queue/memory.ts"
   },
   "scripts": {
     "test": "vitest --root ../.. run packages/plugin-operations/tests",

@@ -134,7 +134,7 @@ describe('segment handoff requests (R2 union)', () => {
       cancel: async () => {},
     } satisfies AgentTransferPort;
     expect(port.inbound).toBeUndefined();
-    expect(AGENT_TRANSFER_REFUSALS).toHaveLength(14);
+    expect(AGENT_TRANSFER_REFUSALS).toHaveLength(19);
   });
 });
 
@@ -161,7 +161,7 @@ describe('transfer session events', () => {
   };
 
   it('appends the four R2 types and validates each payload', () => {
-    expect(SESSION_EVENT_TYPES.slice(-4)).toEqual([
+    expect(SESSION_EVENT_TYPES.slice(-8, -4)).toEqual([
       'transfer.requested',
       'transfer.completed',
       'segment.ended',

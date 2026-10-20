@@ -81,6 +81,23 @@ export function recordingLogger(
   return logger;
 }
 
+/**
+ * With an ephemeral SIP port, UDP picks the number and TCP then binds the same one, which another
+ * process may already hold; on a busy machine that is rare but real, so try a few times.
+ */
+async function startOnFreePort(
+  config: GatewayConfig,
+  logs: Harness['logs'],
+): Promise<RunningGateway> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await startSipGateway({ config, logger: recordingLogger(logs) });
+    } catch (error) {
+      if (config.sipPort !== 0 || attempt >= 5 || !/EADDRINUSE/.test(String(error))) throw error;
+    }
+  }
+}
+
 export interface Harness {
   media: FakeMediaGateway;
   logs: { level: string; event: string; fields?: unknown }[];
@@ -114,7 +131,7 @@ export async function startHarness(
   });
   if (options.timers) config.timers = options.timers;
   const logs: Harness['logs'] = [];
-  const running = await startSipGateway({ config, logger: recordingLogger(logs) });
+  const running = await startOnFreePort(config, logs);
   return {
     media,
     logs,

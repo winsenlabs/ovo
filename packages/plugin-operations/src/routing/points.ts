@@ -4,6 +4,7 @@ import {
   RoutingPointDraft,
   routingAudioIds,
   routingPoolIds,
+  routingQueueIds,
   type RoutingPoint,
 } from '@winsendotai/ovo-contracts';
 import { boundedLimit, transaction } from '../database.ts';
@@ -98,7 +99,11 @@ export class RoutingPoints {
       );
       if (pinned.rowCount)
         return { pinnedBy: pinned.rows.map((row) => maskedNumber(row.phone_number)) };
-      for (const table of ['ovo_routing_point_pools', 'ovo_routing_point_audio'])
+      for (const table of [
+        'ovo_routing_point_pools',
+        'ovo_routing_point_audio',
+        'ovo_hq_point_queues',
+      ])
         await client.query(`DELETE FROM ${table} WHERE organization_id = $1 AND point_id = $2`, [
           this.organizationId,
           id,
@@ -113,8 +118,8 @@ export class RoutingPoints {
   }
 
   /**
-   * Records which pools (tree targets and transfer destinations) and hold clips the draft names,
-   * so neither can be deleted under a live draft. The named rows are share-locked: a concurrent
+   * Records which pools (tree targets and transfer destinations), hold clips and human queues the
+   * draft names, so none can be deleted under a live draft. The named rows are share-locked: a concurrent
    * pool or clip delete waits for this draft, then sees it.
    */
   private async namePools(
@@ -134,6 +139,12 @@ export class RoutingPoints {
         column: 'audio_id',
         rows: 'ovo_routing_audio',
         ids: routingAudioIds(draft),
+      },
+      {
+        table: 'ovo_hq_point_queues',
+        column: 'queue_id',
+        rows: 'ovo_hq_queues',
+        ids: routingQueueIds(draft),
       },
     ] as const;
     for (const { table, column, rows, ids } of links) {

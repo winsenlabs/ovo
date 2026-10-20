@@ -23,6 +23,7 @@
     "packages/plugin-vad": "vendor-plugin",
     "packages/plugin-engine-livekit": "vendor-plugin",
     "packages/plugin-carrier-twilio": "vendor-plugin",
+    "packages/plugin-room-livekit": "vendor-plugin",
     "packages/plugin-carrier-exotel": "vendor-plugin",
     "packages/plugin-carrier-plivo": "vendor-plugin",
     "packages/plugin-carrier-sip": "vendor-plugin",

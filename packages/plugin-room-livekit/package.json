@@ -1,0 +1,20 @@
+{
+  "name": "@winsendotai/ovo-plugin-room-livekit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "dependencies": {
+    "@livekit/rtc-node": "0.13.34",
+    "@winsendotai/ovo-audio": "workspace:*",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "livekit-server-sdk": "2.19.0"
+  },
+  "devDependencies": {
+    "@winsendotai/ovo-conformance": "workspace:*"
+  }
+}

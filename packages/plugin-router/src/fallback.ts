@@ -58,7 +58,7 @@ function asTarget(
 /**
  * The node's fallback chain (§7.5 step 5), resumed where it last stopped: a `reask` is spoken up to
  * `times` (one per turn), a `default` (its target or the release default) and a terminal
- * `callback`/`end` resolve, a `human` queue is skipped in R1, and a step that fails moves on. Every
+ * `callback`/`end` resolve, a `human` queue is begun (R3; skipped when unbound or transfers are off, as in R1), and a step that fails moves on. Every
  * step taken, skipped or failed is a `route.fallback` event. An exhausted chain falls to the
  * release default (`release_default`), and if even that cannot be prepared, to the built-in end
  * line, so the caller is never left in silence.

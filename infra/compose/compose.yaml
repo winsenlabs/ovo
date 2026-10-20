@@ -107,6 +107,22 @@ services:
       OVO_ROUTING_EXTERNAL_ENABLED: ${OVO_ROUTING_EXTERNAL_ENABLED:-false}
       # Wave 16 in-call transfer, off by default: status reports it and publish warns while off.
       OVO_ROUTING_TRANSFER_ENABLED: ${OVO_ROUTING_TRANSFER_ENABLED:-false}
+      # Wave 17 human queues, off by default: /v1/human-queues, /v1/desk and /v1/human-queue/* answer
+      # 404 human_queue_disabled. The room server settings are used only with OVO_LIVEKIT_ENABLED.
+      OVO_HUMAN_QUEUE_ENABLED: ${OVO_HUMAN_QUEUE_ENABLED:-false}
+      OVO_HUMAN_QUEUE_WEBHOOK_ENABLED: ${OVO_HUMAN_QUEUE_WEBHOOK_ENABLED:-false}
+      OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS: ${OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS:-}
+      OVO_HUMAN_QUEUE_PRESENCE_TTL_SECONDS: ${OVO_HUMAN_QUEUE_PRESENCE_TTL_SECONDS:-}
+      OVO_LIVEKIT_ENABLED: ${OVO_LIVEKIT_ENABLED:-false}
+      OVO_LIVEKIT_URL: ${OVO_LIVEKIT_URL:-ws://172.29.240.1:7880}
+      OVO_LIVEKIT_PUBLIC_URL: ${OVO_LIVEKIT_PUBLIC_URL:-}
+      OVO_LIVEKIT_API_KEY: ${OVO_LIVEKIT_API_KEY:-}
+      OVO_LIVEKIT_API_SECRET: ${OVO_LIVEKIT_API_SECRET:-}
+      OVO_LIVEKIT_API_KEY_PREVIOUS: ${OVO_LIVEKIT_API_KEY_PREVIOUS:-}
+      OVO_LIVEKIT_API_SECRET_PREVIOUS: ${OVO_LIVEKIT_API_SECRET_PREVIOUS:-}
+      OVO_LIVEKIT_TOKEN_TTL_SECONDS: ${OVO_LIVEKIT_TOKEN_TTL_SECONDS:-}
+      # The api's own name for the same knob (host code names no provider): one setting, two readers.
+      OVO_ROOM_TOKEN_TTL_SECONDS: ${OVO_LIVEKIT_TOKEN_TTL_SECONDS:-}
       OVO_PROVIDER_EVALUATIONS_ENABLED: ${OVO_PROVIDER_EVALUATIONS_ENABLED:-false}
       OVO_FIXTURE_TEST_CALLS: 'true'
       # Live readiness refuses admission without an installation capacity ceiling; it matches the
@@ -229,6 +245,10 @@ services:
       OVO_INBOUND_ENABLED: ${OVO_INBOUND_ENABLED:-false}
       # The dispatcher's operations service reads it (liveEnabled), and verify-live checks it here.
       OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
+      # Wave 17: the dispatcher runs the human queue sweeper (assigns offers, expires deadlines).
+      OVO_HUMAN_QUEUE_ENABLED: ${OVO_HUMAN_QUEUE_ENABLED:-false}
+      OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS: ${OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS:-}
+      OVO_HUMAN_QUEUE_PRESENCE_TTL_SECONDS: ${OVO_HUMAN_QUEUE_PRESENCE_TTL_SECONDS:-}
       OVO_INBOUND_WARM_FLOOR: '2'
       OVO_WORKER_MAX_CAPACITY: '2'
       OVO_CARRIER_CONCURRENCY: '2'
@@ -330,6 +350,19 @@ services:
       OVO_SIP_ENABLED: ${OVO_SIP_ENABLED:-false}
       OVO_SIP_CONTROL_URL: ${OVO_SIP_CONTROL_URL:-http://172.29.240.1:5090}
       OVO_SIP_CONTROL_TOKEN: ${OVO_SIP_CONTROL_TOKEN:-}
+      # Wave 17 human queues (docs/architecture/human-queues.md), off by default: `human` steps are
+      # skipped and no ticket is ever created. The room settings are read only with OVO_LIVEKIT_ENABLED.
+      OVO_HUMAN_QUEUE_ENABLED: ${OVO_HUMAN_QUEUE_ENABLED:-false}
+      OVO_HUMAN_QUEUE_WEBHOOK_ENABLED: ${OVO_HUMAN_QUEUE_WEBHOOK_ENABLED:-false}
+      OVO_HUMAN_QUEUE_CALLBACK_BASE_URL: ${OVO_HUMAN_QUEUE_CALLBACK_BASE_URL:-}
+      OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS: ${OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS:-}
+      OVO_HUMAN_QUEUE_POLL_MS: ${OVO_HUMAN_QUEUE_POLL_MS:-}
+      OVO_LIVEKIT_ENABLED: ${OVO_LIVEKIT_ENABLED:-false}
+      OVO_LIVEKIT_URL: ${OVO_LIVEKIT_URL:-ws://172.29.240.1:7880}
+      OVO_LIVEKIT_API_KEY: ${OVO_LIVEKIT_API_KEY:-}
+      OVO_LIVEKIT_API_SECRET: ${OVO_LIVEKIT_API_SECRET:-}
+      OVO_LIVEKIT_API_KEY_PREVIOUS: ${OVO_LIVEKIT_API_KEY_PREVIOUS:-}
+      OVO_LIVEKIT_API_SECRET_PREVIOUS: ${OVO_LIVEKIT_API_SECRET_PREVIOUS:-}
     depends_on:
       postgres: { condition: service_healthy, required: false }
       queue: { condition: service_healthy, required: false }
@@ -415,6 +448,9 @@ services:
       OVO_SIP_DRAIN_TIMEOUT_MS: '240000'
       OVO_SIP_HEALTH_LISTEN: 127.0.0.1:5091
       OVO_SIP_INBOUND_WAIT_MAX_MS: ${OVO_SIP_INBOUND_WAIT_MAX_MS:-45000}
+      # Wave 17: REFER to its final NOTIFY, and the (off) INVITE bridge for trunks that refuse REFER.
+      OVO_SIP_REFER_TIMEOUT_MS: ${OVO_SIP_REFER_TIMEOUT_MS:-}
+      OVO_SIP_BRIDGE_ENABLED: ${OVO_SIP_BRIDGE_ENABLED:-false}
       OVO_HEALTH_TOKEN: ${OVO_HEALTH_TOKEN:-}
     volumes:
       # Non-secret trunk list (infra/compose/sip-trunks.example.json); the real file is ignored.
@@ -436,6 +472,33 @@ services:
       retries: 20
     stop_grace_period: 300s
     mem_limit: 512m
+    cpus: 1.0
+    restart: unless-stopped
+    logging: *logging
+
+  # Wave 17 (R3): the self-hosted room server for the operator desk (Apache-2.0,
+  # docs/architecture/human-queues.md). Profile `livekit`, so it starts only when deploy-compose.sh
+  # sees OVO_LIVEKIT_ENABLED=true. Host networking puts signalling, ICE and TURN on the VM NIC
+  # without a docker-proxy per port, so nothing is published here: with OVO_LIVEKIT_PUBLIC_ENABLED=false
+  # (the default) signalling binds loopback and the compose bridge, the only ICE candidate advertised
+  # is the compose bridge address (the workers are bridged containers and reach the host there; a
+  # remote client cannot) and no firewall rule exists for any LiveKit port. The config is rendered from the environment by
+  # scripts/deploy/render-livekit-config.mjs (template: livekit.yaml.template); the image is pinned.
+  livekit:
+    image: ${OVO_LIVEKIT_IMAGE:-livekit/livekit-server:v1.13.9}
+    profiles: [livekit]
+    network_mode: host
+    command: ['--config', '/etc/livekit.yaml']
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:${OVO_LIVEKIT_SIGNAL_PORT:-7880}/']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # Rooms are ephemeral: a restart drops live human calls, so a deploy leaves a running server alone.
+    stop_grace_period: 60s
+    mem_limit: 1g
     cpus: 1.0
     restart: unless-stopped
     logging: *logging

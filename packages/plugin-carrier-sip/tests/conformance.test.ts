@@ -135,6 +135,45 @@ describeCarrier('SIP trunk (ovo-sip/1)', factory, {
       expect: 'live',
       state: 'ringing',
     },
+    handoff: [
+      {
+        scripts: sipControlScript({
+          method: 'POST',
+          path: '/v1/calls/handoff',
+          where: {
+            carrierCallId: 'cid@ovo',
+            requestId: 'handoff-1',
+            target: { kind: 'phone', e164: '+15550123' },
+          },
+          reply: { status: 200, body: { kind: 'confirmed', receiptId: 'refer:cid@ovo:handoff-1' } },
+        }),
+        carrierCallId: 'cid@ovo',
+        target: { kind: 'phone', e164: '+15550123' },
+      },
+      {
+        scripts: sipControlScript({
+          method: 'POST',
+          path: '/v1/calls/handoff',
+          where: {
+            carrierCallId: 'cid@ovo',
+            requestId: 'handoff-1',
+            target: {
+              kind: 'sip',
+              uri: 'sips:acd@sbc.example.net',
+              headers: { 'X-OVO-Ticket': 't-1' },
+            },
+          },
+          reply: { status: 200, body: { kind: 'unknown', reason: 'refer_no_notify' } },
+        }),
+        carrierCallId: 'cid@ovo',
+        target: {
+          kind: 'sip',
+          uri: 'sips:acd@sbc.example.net',
+          headers: { 'X-OVO-Ticket': 't-1' },
+        },
+        expect: 'unknown',
+      },
+    ],
   },
   vectors: {
     http: [

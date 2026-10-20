@@ -71,7 +71,7 @@ function recordingClient() {
 }
 
 describe('plugin-carrier-tcn manifest', () => {
-  it('is a tcn carrier on the sip-gateway: no egress, no handoff, no AMD, its own meter', () => {
+  it('is a tcn carrier on the sip-gateway: no egress, REFER handoff, no AMD, its own meter', () => {
     const manifest = Manifest.parse(tcnCarrierPlugin.manifest);
     expect(manifest).toMatchObject({
       kind: 'carrier',
@@ -79,7 +79,10 @@ describe('plugin-carrier-tcn manifest', () => {
       runtime: { egressHosts: [] },
       conformance: ['carrier@1'],
       meters: [{ key: 'tcn.carrier.audio_seconds', unit: 'audio_seconds', role: 'carrier' }],
-      capabilities: { carrierId: 'tcn', control: { handoff: [], amd: 'none', hangup: 'rest' } },
+      capabilities: {
+        carrierId: 'tcn',
+        control: { handoff: ['phone', 'sip'], amd: 'none', hangup: 'rest' },
+      },
     });
     const raw = tcnCarrierPlugin.manifest as unknown as {
       optional: string[];
@@ -242,6 +245,58 @@ describe('plugin-carrier-tcn inbound metadata headers', () => {
       );
       expect(reply.status).toBe(503);
       expect(host.calls.filter((call) => call.method === 'admitInbound')).toEqual([]);
+    } finally {
+      await graph.dispose();
+    }
+  });
+});
+
+describe('plugin-carrier-tcn handoff', () => {
+  it.each([
+    [{ kind: 'phone', e164: '+919000000000' }],
+    [{ kind: 'sip', uri: 'sips:acd@sbc.example.net', headers: { 'X-OVO-Ticket': 't-1' } }],
+  ] as const)('forwards a %j handoff to the sip-gateway and returns its answer', async (target) => {
+    const seen: Parameters<SipTrunkControlClient['request']>[0][] = [];
+    const { graph, control } = await composed({
+      [Cap.sipTrunkControl]: {
+        request: async (input: Parameters<SipTrunkControlClient['request']>[0]) => {
+          seen.push(input);
+          return { status: 200, body: { kind: 'unknown', reason: 'refer_no_notify' } };
+        },
+      },
+    });
+    try {
+      expect(control.capabilities.control.handoff).toEqual(['phone', 'sip']);
+      expect(await control.create(binding({})).handoff('cid@ovo', target, 'h-1')).toEqual({
+        kind: 'unknown',
+        reason: 'refer_no_notify',
+      });
+      expect(seen).toEqual([
+        {
+          method: 'POST',
+          path: '/v1/calls/handoff',
+          body: { carrierCallId: 'cid@ovo', requestId: 'h-1', target },
+        },
+      ]);
+    } finally {
+      await graph.dispose();
+    }
+  });
+
+  it.each([
+    { kind: 'queue', name: 'support' },
+    { kind: 'end', message: 'bye' },
+    { kind: 'resume', resumeUrl: 'https://ovo.example.test/resume' },
+  ] as const)('refuses a %j handoff without calling the sip-gateway', async (target) => {
+    const request = async () => {
+      throw new Error('must not be called');
+    };
+    const { graph, control } = await composed({ [Cap.sipTrunkControl]: { request } });
+    try {
+      expect(await control.create(binding({})).handoff('cid@ovo', target, 'h-2')).toMatchObject({
+        kind: 'rejected',
+        retryable: false,
+      });
     } finally {
       await graph.dispose();
     }

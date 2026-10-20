@@ -190,6 +190,39 @@ describe('Fargate scaling contract', () => {
     expect(block(vars, 'variable', 'routing_prepare_timeout_ms')).toMatch(/default\s+=\s+""/);
   });
 
+  it('passes the human queue flags, off by default, and refuses a Fargate room server (Wave 17)', () => {
+    const tasks = tf('tasks.tf');
+    const task = (name: string) => block(tasks, 'resource "aws_ecs_task_definition"', name);
+    const enabled =
+      '{ name = "OVO_HUMAN_QUEUE_ENABLED", value = tostring(var.enable_human_queue) }';
+    const webhook =
+      '{ name = "OVO_HUMAN_QUEUE_WEBHOOK_ENABLED", value = tostring(var.human_queue_webhook_enabled) }';
+    const retention =
+      '{ name = "OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS", value = var.human_queue_context_retention_hours }';
+    const callback =
+      '{ name = "OVO_HUMAN_QUEUE_CALLBACK_BASE_URL", value = var.human_queue_callback_base_url }';
+    for (const name of ['api', 'worker', 'dispatcher']) {
+      expect(task(name), name).toContain(enabled);
+      expect(task(name), name).toContain(retention);
+    }
+    for (const name of ['api', 'worker']) expect(task(name), name).toContain(webhook);
+    expect(task('worker')).toContain(callback);
+    for (const name of ['gateway', 'console'])
+      expect(task(name), name).not.toContain('HUMAN_QUEUE');
+    for (const name of ['api', 'dispatcher']) expect(task(name), name).not.toContain(callback);
+    expect(task('dispatcher')).not.toContain(webhook);
+    const vars = tf('variables.tf');
+    for (const variable of ['enable_human_queue', 'human_queue_webhook_enabled', 'enable_livekit'])
+      expect(block(vars, 'variable', variable)).toMatch(/type\s+=\s+bool\s+default\s+=\s+false/);
+    for (const variable of ['human_queue_callback_base_url', 'human_queue_context_retention_hours'])
+      expect(block(vars, 'variable', variable)).toMatch(/default\s+=\s+""/);
+    // The room server cannot run on Fargate: the variable exists and refuses true at plan time.
+    expect(block(vars, 'variable', 'enable_livekit')).toContain(
+      'condition     = !var.enable_livekit',
+    );
+    expect(tasks).not.toContain('OVO_LIVEKIT');
+  });
+
   it('provides every required variable in the example and S3 state locking', () => {
     const vars = tf('variables.tf');
     const example = tf('terraform.tfvars.example');

@@ -2,6 +2,8 @@ import {
   routingAgentRefs,
   routingAudioIds,
   routingPoolIds,
+  routingQueueIds,
+  type HumanQueue,
   type RouteAgentRef,
   type RoutingAudio,
   type RoutingPath,
@@ -32,12 +34,17 @@ export type PoolLookup = (id: string) => Promise<RoutingPool | 'deleted' | undef
 /** A hold clip as publish finds it, deleted ones included (`deletedAt` set), or unknown. */
 export type AudioLookup = (id: string) => Promise<RoutingAudio | undefined>;
 
+/** A human queue as publish finds it: live, soft-deleted, or unknown (undefined). */
+export type QueueLookup = (id: string) => Promise<HumanQueue | 'deleted' | undefined>;
+
 export interface RoutingResolution {
   refs: ResolvedRef[];
   /** Every pool a tree target or a transfer destination names, by id. */
   pools: Map<string, RoutingPool | 'deleted' | undefined>;
   /** Every clip a hold step names, by id. */
   audio: Map<string, RoutingAudio | undefined>;
+  /** Every human queue the draft binds, by id (Wave 17). */
+  queues: Map<string, HumanQueue | 'deleted' | undefined>;
 }
 
 /** The live pool, when the lookup found one. */
@@ -98,6 +105,7 @@ export async function resolveRouting(input: {
   store: RoutingReleaseStore;
   pool: PoolLookup;
   audio: AudioLookup;
+  queue?: QueueLookup;
 }): Promise<RoutingResolution> {
   const resolve = releaseResolver(input.store, input.workspaceId);
   const refs: ResolvedRef[] = [];
@@ -122,7 +130,9 @@ export async function resolveRouting(input: {
       await add('member', ['pools', poolId, 'members', index, 'agent'], member.agent);
   const audio = new Map<string, RoutingAudio | undefined>();
   for (const id of routingAudioIds(input.draft)) audio.set(id, await input.audio(id));
-  return { refs, pools, audio };
+  const queues = new Map<string, HumanQueue | 'deleted' | undefined>();
+  for (const id of routingQueueIds(input.draft)) queues.set(id, await input.queue?.(id));
+  return { refs, pools, audio, queues };
 }
 
 /** The router's resolved reference (always the first). */

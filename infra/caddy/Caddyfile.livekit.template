@@ -1,0 +1,11 @@
+# The room server's signalling origin (Wave 17, optional): scripts/bootstrap-compose.sh --livekit-host
+# appends this site to the Caddyfile. Browsers open a WebSocket here for the operator desk; Caddy
+# terminates TLS and proxies to the server on loopback. Media does not pass through Caddy: it needs
+# the UDP/TCP ports of docs/runbooks/livekit-deploy.md. Nothing listens until OVO_LIVEKIT_ENABLED=true.
+
+__OVO_LIVEKIT_HOST__ {
+	reverse_proxy 127.0.0.1:__OVO_LIVEKIT_SIGNAL_PORT__ {
+		# Keep live calls' signalling sockets open across `systemctl reload caddy`.
+		stream_close_delay 10m
+	}
+}

@@ -6,6 +6,8 @@ import { OperationsCallRegistry } from './calls.ts';
 import { PostgresRoutingService, type RoutingService } from './routing/service.ts';
 import { normalizePhoneNumber } from './csv.ts';
 import { HandoffService } from './handoff.ts';
+import type { HumanQueueService } from './human-queue/service.ts';
+import { PostgresHumanQueueService } from './human-queue/postgres/service.ts';
 import { InboundGatewayAdmissionService } from './inbound-gateway.ts';
 import { InboundRouteService } from './inbound-routes.ts';
 import { InboundService } from './inbound.ts';
@@ -28,6 +30,8 @@ export interface OperationsService {
   readonly calls: OperationsCallRegistry;
   /** Wave 15 pools, points, releases and member claims. */
   readonly routing: RoutingService;
+  /** Wave 17 human queues: queues, operators, tickets. */
+  readonly humanQueues: HumanQueueService;
   migrate(): Promise<void>;
   close(): Promise<void>;
 }
@@ -45,6 +49,7 @@ export class PostgresOperationsService implements OperationsService {
   readonly outbox: OperationsOutbox;
   readonly calls: OperationsCallRegistry;
   readonly routing: PostgresRoutingService;
+  readonly humanQueues: PostgresHumanQueueService;
 
   private readonly ownsPool: boolean;
   private closePromise?: Promise<void>;
@@ -82,6 +87,10 @@ export class PostgresOperationsService implements OperationsService {
       ),
       liveEnabled: input.config?.liveEnabled === true,
       routingEnabled: input.config?.routingEnabled === true,
+      humanQueueEnabled: input.config?.humanQueueEnabled === true,
+      ...(input.config?.humanQueuePresenceTtlSeconds
+        ? { humanQueuePresenceTtlSeconds: input.config.humanQueuePresenceTtlSeconds }
+        : {}),
     });
     this.campaigns = new CampaignService(
       this.pool,
@@ -109,6 +118,12 @@ export class PostgresOperationsService implements OperationsService {
       input.organizationId,
       this.config.routingEnabled === true,
     );
+    this.humanQueues = new PostgresHumanQueueService(this.pool, input.organizationId, {
+      enabled: this.config.humanQueueEnabled === true,
+      ...(this.config.humanQueuePresenceTtlSeconds
+        ? { presenceTtlSeconds: this.config.humanQueuePresenceTtlSeconds }
+        : {}),
+    });
   }
 
   migrate(): Promise<void> {

@@ -34,7 +34,13 @@ function close(server: Server): Promise<void> {
 /** Boots the sip-gateway: SIP and RTP sockets, then the control API, then health (§4.1). */
 export async function startSipGateway(options: GatewayOptions): Promise<RunningGateway> {
   const gateway = new SipGateway(options);
-  await gateway.start();
+  try {
+    await gateway.start();
+  } catch (error) {
+    // One transport may have bound before the other failed (UDP up, its TCP port taken).
+    await gateway.close();
+    throw error;
+  }
   const control = createControlServer(gateway);
   const health = createHealthServer(gateway);
   const { config } = options;

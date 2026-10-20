@@ -3,9 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./room": "./src/room/index.ts"
+  },
   "dependencies": {
     "@winsendotai/ovo-contracts": "workspace:*",
-    "@winsendotai/ovo-runtime": "workspace:*"
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "livekit-client": "2.22.3"
   }
 }

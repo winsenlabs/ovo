@@ -61,6 +61,28 @@ export const fixtures: Record<string, NetFixtureScript[]> = {
       ],
     },
   ],
+  // `<Dial><Sip>` handoff: the same call-update request with the TwiML in the form body.
+  // https://www.twilio.com/docs/voice/twiml/sip (retrieved 2026-10-15)
+  'twilio.handoff.sip': [
+    {
+      host: 'api.twilio.com',
+      source: 'https://www.twilio.com/docs/voice/twiml/sip',
+      retrieved: '2026-10-15',
+      steps: [
+        {
+          expect: 'http',
+          method: 'POST',
+          url: updateUrl,
+          body: 'form',
+          where: {
+            Twiml:
+              '<Response><Dial><Sip>sips:acd@sbc.example.net?X-OVO-Ticket=t-1&amp;X-OVO-Language=en%20IN</Sip></Dial></Response>',
+          },
+          reply: { status: 200, body: JSON.stringify({ sid: callSid, status: 'in-progress' }) },
+        },
+      ],
+    },
+  ],
   'twilio.handoff': [
     {
       host: 'api.twilio.com',

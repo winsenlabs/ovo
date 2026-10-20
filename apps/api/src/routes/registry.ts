@@ -19,7 +19,11 @@ import { registerMcpRoutes } from './mcp.ts';
 import { registerOperationsRoutes } from './operations.ts';
 import { registerPerformanceRoutes } from './performance.ts';
 import { registerReadinessRoutes } from './readiness.ts';
+import { registerHumanQueue } from './human-queue-index.ts';
 import { registerRoutingRoutes } from './routing.ts';
+import { createCallOutcomeReader } from './call-outcomes.ts';
+import { humanQueueFlagsFromEnv } from '../human-queue-config.ts';
+import { sessionHostEgress } from '../human-queue-egress.ts';
 import { registerRequiredMeterRoutes } from './required-meters.ts';
 import { registerRecordingLifecycleRoutes } from './recording-lifecycle.ts';
 import { registerRecordingRoutes } from './recordings.ts';
@@ -69,11 +73,40 @@ export function registerApiRoutes(deps: any): void {
     enabled: options.routingEnabled === true,
     externalEnabled: options.routingExternalEnabled === true,
     transferEnabled: options.routingTransferEnabled === true,
+    humanQueueEnabled: options.humanQueueEnabled === true,
+    humanQueueWebhookEnabled: options.humanQueueWebhookEnabled === true,
+    roomConfigured: options.roomEnabled === true,
     // A ledger runs wherever the worker prices calls, and the worker then refuses an unpriced one.
     requireCostPolicy: options.costLedgerEnabled === true,
     registry: new PluginRegistry(deps.catalog),
     ledger: options.costLedgerEnabled ? (ctx.get(Cap.costLedger) as CostLedgerService) : undefined,
     expectedVersion: deps.expectedVersion,
+  });
+  const outcomes = createCallOutcomeReader(options);
+  app.addHook('onClose', () => outcomes.close());
+  registerHumanQueue({
+    app,
+    store,
+    requireRole,
+    expectedVersion: deps.expectedVersion,
+    operations: options.operationsEnabled
+      ? (ctx.get(Cap.operations) as OperationsService)
+      : undefined,
+    flags: {
+      enabled: options.humanQueueEnabled === true,
+      webhookEnabled: options.humanQueueWebhookEnabled === true,
+    },
+    rooms: options.roomEnabled ? ctx.get(Cap.mediaRoom) : undefined,
+    roomTokenTtlSeconds:
+      options.roomTokenTtlSeconds ?? humanQueueFlagsFromEnv({}).roomTokenTtlSeconds,
+    presenceTtlSeconds:
+      options.humanQueuePresenceTtlSeconds ??
+      humanQueueFlagsFromEnv({}).humanQueuePresenceTtlSeconds,
+    callbackBaseUrl: options.humanQueueCallbackBaseUrl ?? 'https://ovo.invalid',
+    users,
+    secrets: deps.secrets,
+    outcomes,
+    egress: options.humanQueueEgress ?? sessionHostEgress,
   });
   registerEvaluationDatasetRoutes({
     app,

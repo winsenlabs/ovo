@@ -12,6 +12,8 @@ export function fakeMediaLink(sessionId = 'session-1') {
   const dtmf = new Set<Listener<[string]>>();
   const closes = new Set<Listener<[string]>>();
   const sent: string[] = [];
+  /** The bytes of every `sendAudio`, in order (human bridge tests read them). */
+  const frames: Uint8Array[] = [];
   const closed: string[] = [];
   let isClosed = false;
   const add =
@@ -28,7 +30,10 @@ export function fakeMediaLink(sessionId = 'session-1') {
   const link = {
     sessionId,
     bufferedBytes: 0,
-    sendAudio: async () => void sent.push('audio'),
+    sendAudio: async (bytes: Uint8Array) => {
+      sent.push('audio');
+      frames.push(bytes);
+    },
     sendMark: async (name: string) => void sent.push(`mark:${name}`),
     clear: async () => void sent.push('clear'),
     onAudio: add(audio),
@@ -42,6 +47,7 @@ export function fakeMediaLink(sessionId = 'session-1') {
   } satisfies VoiceMediaTransport;
   return Object.assign(link, {
     sent,
+    frames,
     closed,
     get isClosed() {
       return isClosed;

@@ -17,7 +17,7 @@ export interface TranscriptLine {
 /** One segment of the call as transfers see it (transfer design 7.1). */
 export interface SegmentHistoryEntry {
   index: number;
-  role: 'router' | 'agent';
+  role: 'router' | 'agent' | 'human';
   agentId: string;
   releaseId: string;
   poolId?: string;
@@ -25,6 +25,10 @@ export interface SegmentHistoryEntry {
   claimId?: string;
   language?: string;
   transfer?: number;
+  /** Human only: `agentId` is `queue:<key>` and `releaseId` the queue's id. */
+  ticketId?: string;
+  operatorId?: string;
+  queueKind?: 'external' | 'managed';
   startedAt: number;
 }
 

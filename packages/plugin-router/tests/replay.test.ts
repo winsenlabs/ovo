@@ -1,7 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { HandoffBeginFailure, MemberClaim, RouterEntry } from '@winsendotai/ovo-contracts';
-import type { EngineScript } from '../src/testing.ts';
+import type {
+  HandoffBeginFailure,
+  MemberClaim,
+  RouterEntry,
+  RoutingReleaseSnapshot,
+} from '@winsendotai/ovo-contracts';
+import { exampleRoutingSnapshot, type EngineScript } from '../src/testing.ts';
 import { dtmf, idle, opening, routerHarness } from './harness.ts';
 
 /**
@@ -21,6 +26,8 @@ interface Conversation {
   prepare?: string;
   begin?: true | HandoffBeginFailure;
   transfer?: Record<string, unknown>;
+  /** R3: the release binds the human queue `desk`, and the `intent` node falls back through these. */
+  humanQueue?: { fallback: unknown[] };
   entry?: RouterEntry;
   begun?: Record<string, unknown>[];
   turns: (
@@ -53,8 +60,33 @@ function beginScript(begin: Conversation['begin']) {
   };
 }
 
+const QUEUE_ID = '00000000-0000-4000-8000-0000000000e1';
+
+function withQueue(conversation: Conversation): RoutingReleaseSnapshot {
+  return exampleRoutingSnapshot((raw) => {
+    raw.schemaVersion = 3;
+    raw.transfer = conversation.transfer;
+    raw.nodes[0].fallback = conversation.humanQueue!.fallback;
+    raw.humanQueues = [{ key: 'desk', queueId: QUEUE_ID, priority: 0 }];
+    raw.queues = {
+      [QUEUE_ID]: {
+        id: QUEUE_ID,
+        version: 1,
+        key: 'desk',
+        priority: 0,
+        definition: {
+          kind: 'managed',
+          name: 'Desk',
+          announcement: { en: 'A colleague will take over.' },
+        },
+      },
+    };
+  });
+}
+
 async function replay(conversation: Conversation) {
   const begin = beginScript(conversation.begin);
+  const human = conversation.humanQueue;
   const h = routerHarness({
     script: conversation.engines,
     ...(conversation.transfer
@@ -63,6 +95,12 @@ async function replay(conversation: Conversation) {
             raw.schemaVersion = 2;
             raw.transfer = conversation.transfer;
           },
+        }
+      : {}),
+    // Schema 3 pins each bound queue under `queues`.
+    ...(human
+      ? {
+          snapshot: withQueue(conversation),
         }
       : {}),
     ...(conversation.claims === 'full'
@@ -121,7 +159,7 @@ async function replay(conversation: Conversation) {
 describe('router replay', () => {
   it('has conversations to replay', () => {
     expect(conversations.length).toBeGreaterThanOrEqual(5);
-    expect(transfers.length).toBeGreaterThanOrEqual(4);
+    expect(transfers.length).toBeGreaterThanOrEqual(6);
   });
 
   it.each(conversations.map((conversation) => [conversation.name, conversation] as const))(

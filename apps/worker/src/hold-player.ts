@@ -101,7 +101,7 @@ export class HoldPlayer {
     return this.startedAt !== undefined;
   }
 
-  start(source: 'target' | 'point' | 'default'): void {
+  start(source: 'target' | 'point' | 'default' | 'queue'): void {
     if (this.startedAt !== undefined || this.finished) return;
     this.startedAt = this.clock.now();
     this.input.audit('transfer.hold.started', { ...this.input.tags, policy: source });

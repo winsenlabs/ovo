@@ -54,7 +54,7 @@ const clock: Clock = {
  */
 export async function composeReleaseProvider(
   release: ReleaseRecord,
-  slot: 'tts' | 'stt',
+  slot: 'tts' | 'stt' | 'llm',
   usage: UsageSink,
   deps: Omit<ReleaseSpeechDeps, 'defaults'>,
 ): Promise<Composition> {

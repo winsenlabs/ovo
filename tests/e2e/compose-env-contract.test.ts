@@ -277,3 +277,49 @@ describe('Compose routing environment (Wave 15)', () => {
       });
   });
 });
+
+describe('Compose human queue environment (Wave 17)', () => {
+  const DATABASE = 'postgresql://ovo:secret@postgres:5432/ovo';
+
+  it('keeps human queues and the room server off when the .env says nothing about them', () => {
+    const variables = goLiveComposeVariables(DATABASE);
+    for (const service of ['api', 'worker-1', 'worker-2', 'dispatcher'])
+      expect(renderServiceEnv(service, variables).OVO_HUMAN_QUEUE_ENABLED, service).toBe('false');
+    for (const service of ['api', 'worker-1', 'worker-2']) {
+      const rendered = renderServiceEnv(service, variables);
+      expect(rendered.OVO_HUMAN_QUEUE_WEBHOOK_ENABLED, service).toBe('false');
+      expect(rendered.OVO_LIVEKIT_ENABLED, service).toBe('false');
+      expect(rendered.OVO_LIVEKIT_URL, service).toBe('ws://172.29.240.1:7880');
+    }
+    expect(renderServiceEnv('worker-1', variables).OVO_HUMAN_QUEUE_CALLBACK_BASE_URL).toBe('');
+  });
+
+  it('hands the api and the workers the same key pair the room server is configured with', () => {
+    const variables = {
+      ...goLiveComposeVariables(DATABASE),
+      OVO_LIVEKIT_ENABLED: 'true',
+      OVO_LIVEKIT_API_KEY: 'ovoabc123def',
+      OVO_LIVEKIT_API_SECRET: 's'.repeat(40),
+      OVO_LIVEKIT_PUBLIC_URL: 'wss://rooms.example.com',
+      OVO_HUMAN_QUEUE_ENABLED: 'true',
+      OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS: '48',
+    };
+    const api = renderServiceEnv('api', variables);
+    const workers = ['worker-1', 'worker-2'].map((name) => renderServiceEnv(name, variables));
+    expect(api).toMatchObject({
+      OVO_LIVEKIT_ENABLED: 'true',
+      OVO_LIVEKIT_API_KEY: 'ovoabc123def',
+      OVO_LIVEKIT_PUBLIC_URL: 'wss://rooms.example.com',
+      OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS: '48',
+    });
+    for (const worker of workers) {
+      expect(worker.OVO_LIVEKIT_API_SECRET).toBe(variables.OVO_LIVEKIT_API_SECRET);
+      expect(worker.OVO_HUMAN_QUEUE_ENABLED).toBe('true');
+      expect(worker).not.toHaveProperty('OVO_LIVEKIT_PUBLIC_URL');
+    }
+    expect(renderServiceEnv('dispatcher', variables).OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS).toBe(
+      '48',
+    );
+    expect(renderServiceEnv('gateway', variables)).not.toHaveProperty('OVO_LIVEKIT_ENABLED');
+  });
+});

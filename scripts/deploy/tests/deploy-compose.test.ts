@@ -124,6 +124,8 @@ describe('deploy-compose.sh (OPS-8)', () => {
     expect(image(envFile, 'TOOLS')).toBe(`reg.example/ovo/ovo-tools:aaa@${DIGEST('f')}`);
   });
 
+  // Four deploys of the real script in a row: about 6 s alone, more than the 15 s default under
+  // the full suite's parallel load on the build host.
   it('records a deploy whose verification fails, so --rollback returns to the last good one', async () => {
     const services = ['api', 'console', 'gateway', 'dispatcher', 'worker-1', 'worker-2'];
     const { box, deploy, envFile, history, setDocker } = fixture({ services });
@@ -142,7 +144,7 @@ describe('deploy-compose.sh (OPS-8)', () => {
     // Rolling back again returns to the newest good release other than bbb.
     expect((await deploy('--rollback')).code).toBe(0);
     expect(image(envFile, 'API')).toBe(`reg.example/ovo/ovo-api:aaa@${DIGEST('a')}`);
-  });
+  }, 45_000);
 
   it('deploys a branch that exists only on origin', async () => {
     const { repo, box, deploy, second } = fixture();

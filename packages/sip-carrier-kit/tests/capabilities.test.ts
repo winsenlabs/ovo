@@ -23,7 +23,7 @@ describe('sipCarrierCapabilities (§5.6)', () => {
         streamParams: 'at-dial',
         streamCallIdMatchesDial: true,
         cancelBeforeAnswer: true,
-        handoff: [],
+        handoff: ['phone', 'sip'],
         amd: 'none',
         maxDuration: true,
         reconcile: 'by-request-id',

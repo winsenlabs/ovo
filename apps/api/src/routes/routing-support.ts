@@ -23,6 +23,12 @@ export interface RoutingRouteDependencies {
   externalEnabled: boolean;
   /** `OVO_ROUTING_TRANSFER_ENABLED`; off, publish warns that a transfer catalogue stays inert. */
   transferEnabled: boolean;
+  /** `OVO_HUMAN_QUEUE_ENABLED`; reported by `status`, and a bound queue warns while it is off. */
+  humanQueueEnabled?: boolean;
+  /** `OVO_HUMAN_QUEUE_WEBHOOK_ENABLED`; off, a bound webhook queue warns that it stays inert. */
+  humanQueueWebhookEnabled?: boolean;
+  /** A `Cap.mediaRoom` provider is composed here; absent, a bound desk queue warns. */
+  roomConfigured?: boolean;
   /** The worker refuses a call whose release has no cost policy when a ledger runs. */
   requireCostPolicy: boolean;
   /** The installed plugins, to read the meters a release's pins emit. */

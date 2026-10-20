@@ -49,6 +49,7 @@ describe('environment (§11.1), fail closed', () => {
       drainTimeoutMs: 240_000,
       health: { host: '127.0.0.1', port: 5091, token: '' },
       inboundWaitMaxMs: 45_000,
+      referTimeoutMs: 15_000,
     });
     expect(config.keys.current.byteLength).toBe(32);
   });
@@ -107,6 +108,102 @@ describe('environment (§11.1), fail closed', () => {
     expect(loadConfig({ ...ENV, OVO_SIP_TRUNKS_FILE: join(dir, 'ok.json') }).trunks[0]!.id).toBe(
       'trunk-a',
     );
+  });
+});
+
+describe('OVO_SIP_REFER_TIMEOUT_MS', () => {
+  it.each([
+    ['2000', 2_000],
+    ['60000', 60_000],
+    ['', 15_000],
+  ])('reads %j as %i', (value, expected) => {
+    expect(loadConfig({ ...ENV, OVO_SIP_REFER_TIMEOUT_MS: value }, trunks).referTimeoutMs).toBe(
+      expected,
+    );
+  });
+
+  it.each(['1999', '60001', 'abc', '1.5', '-1'])('refuses %j', (value) => {
+    expect(() => loadConfig({ ...ENV, OVO_SIP_REFER_TIMEOUT_MS: value }, trunks)).toThrow(
+      'OVO_SIP_REFER_TIMEOUT_MS',
+    );
+  });
+});
+
+describe('OVO_SIP_BRIDGE_ENABLED and refer.mode bridge (stretch S1)', () => {
+  it.each([
+    ['', false],
+    ['false', false],
+    ['true', true],
+    ['1', true],
+  ])('reads OVO_SIP_BRIDGE_ENABLED=%j as %s', (value, expected) => {
+    expect(loadConfig({ ...ENV, OVO_SIP_BRIDGE_ENABLED: value }, trunks).bridgeEnabled).toBe(
+      expected,
+    );
+  });
+
+  const bridge = (change: Record<string, unknown>) =>
+    parseTrunkFile({
+      version: 1,
+      trunks: [{ ...TRUNK, refer: { enabled: true, mode: 'bridge' }, ...change }],
+    })[0]!.refer;
+
+  it('needs no template or allow-list (a phone is dialled on the proxy) but needs an IP-auth outbound leg', () => {
+    expect(bridge({})).toMatchObject({ enabled: true, mode: 'bridge' });
+    expect(() => bridge({ outbound: { enabled: false } })).toThrow(
+      'refer.mode bridge needs outbound',
+    );
+    expect(() => bridge({ outbound: { ...TRUNK.outbound, auth: 'digest' } })).toThrow(
+      'refer.mode bridge needs outbound',
+    );
+  });
+
+  it('refuses a mode it does not know', () => {
+    expect(() => bridge({ refer: { enabled: true, mode: 'sbc' } })).toThrow('Invalid trunk file');
+  });
+});
+
+describe('trunk refer block (R3)', () => {
+  const refer = (block: unknown) =>
+    parseTrunkFile({ version: 1, trunks: [{ ...TRUNK, refer: block }] })[0]!.refer;
+
+  it('is off by default: absent means disabled with an empty allow-list', () => {
+    expect(trunks()[0]!.refer).toEqual({ enabled: false, mode: 'refer', allowedHosts: [] });
+    expect(refer({})).toEqual({ enabled: false, mode: 'refer', allowedHosts: [] });
+  });
+
+  it('accepts a template and allow-list, lower-casing hosts', () => {
+    expect(
+      refer({
+        enabled: true,
+        phoneUriTemplate: 'sips:{e164}@SBC.example.net;user=phone',
+        allowedHosts: ['.ACD.example.net', 'Transfer.example.net', '203.0.113.7'],
+      }),
+    ).toEqual({
+      enabled: true,
+      mode: 'refer',
+      phoneUriTemplate: 'sips:{e164}@SBC.example.net;user=phone',
+      allowedHosts: ['.acd.example.net', 'transfer.example.net', '203.0.113.7'],
+    });
+  });
+
+  it.each([
+    ['enabled with nothing to dial', { enabled: true }],
+    ['a template without {e164}', { phoneUriTemplate: 'sip:agent@sbc.example.net' }],
+    ['a template with {e164} twice', { phoneUriTemplate: 'sip:{e164}@sbc.example.net;x={e164}' }],
+    ['a template that is not a sip URI', { phoneUriTemplate: 'tel:{e164}' }],
+    ['a template with a host-less URI', { phoneUriTemplate: 'sip:{e164}' }],
+    [
+      'a template with {e164} outside the user part',
+      { phoneUriTemplate: 'sip:x{e164}@sbc.example.net' },
+    ],
+    ['a template carrying headers', { phoneUriTemplate: 'sip:{e164}@sbc.example.net?X-A=1' }],
+    ['a template with whitespace', { phoneUriTemplate: 'sip:{e164}@sbc.example.net ;user=phone' }],
+    ['a host with a path', { allowedHosts: ['acd.example.net/x'] }],
+    ['a host with an empty label', { allowedHosts: ['acd..example.net'] }],
+    ['a wildcard host', { allowedHosts: ['*.example.net'] }],
+    ['an unknown key', { enabled: false, bridge: true }],
+  ])('refuses %s', (_name, block) => {
+    expect(() => refer(block)).toThrow('Invalid trunk file');
   });
 });
 

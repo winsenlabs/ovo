@@ -1,0 +1,275 @@
+/* Wave 17: operator desk and human queue administration. Tokens only; new `desk-` classes. */
+.desk-presence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.desk-segmented {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.desk-segmented label {
+  position: relative;
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  padding: 0 var(--space-3);
+  color: var(--text-2);
+  font-size: var(--text-label-size);
+  font-weight: 500;
+  cursor: pointer;
+}
+.desk-segmented label + label {
+  border-inline-start: 1px solid var(--border);
+}
+.desk-segmented label.is-selected {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+.desk-segmented label:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.desk-segmented input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: inherit;
+}
+.desk-segmented input:disabled + span {
+  opacity: 0.5;
+}
+.desk-layout {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+/* The queue is a table only where its column is 700px or wider, so the call and the queue stack
+   until the screen can give both that much. */
+@media (min-width: 1800px) {
+  .desk-layout.has-active {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: 'queue active';
+  }
+  .desk-layout.has-active .desk-queue {
+    grid-area: queue;
+  }
+  .desk-layout.has-active .desk-active {
+    grid-area: active;
+  }
+}
+.desk-reason {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+}
+.desk-wait,
+.desk-timer {
+  font-variant-numeric: tabular-nums;
+}
+.desk-caller {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-h2-size);
+}
+.desk-caller:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.desk-timer {
+  margin-inline-start: auto;
+  color: var(--text-2);
+  font-size: var(--text-body-size);
+  font-weight: 500;
+}
+.desk-audio {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  align-items: end;
+  margin-bottom: var(--space-3);
+}
+.desk-levels {
+  display: grid;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  grid-template-columns: auto 1fr;
+}
+.desk-meter {
+  overflow: hidden;
+  height: 8px;
+  min-width: 80px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+.desk-meter-bar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.desk-call-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-4);
+}
+.desk-sendback {
+  display: flex;
+  gap: var(--space-2);
+}
+@media (max-width: 700px) {
+  /* The controls stay reachable while the transcript scrolls under them. */
+  .desk-call-actions {
+    position: sticky;
+    z-index: 2;
+    bottom: 0;
+    padding: var(--space-2) 0;
+    background: var(--surface);
+  }
+}
+.desk-divider {
+  margin: var(--space-3) 0 var(--space-2);
+  color: var(--text-3);
+  font-size: var(--text-label-size);
+  font-weight: 600;
+}
+.desk-summary-text {
+  white-space: pre-wrap;
+}
+.desk-wrapup {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 480px;
+  margin-bottom: var(--space-3);
+}
+.desk-mic {
+  display: grid;
+  gap: var(--space-3);
+  min-width: min(420px, 100%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .desk-meter-bar {
+    transition: transform 60ms linear;
+  }
+}
+
+/* Human queue administration (drawers, editors). */
+.queue-form {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 720px;
+}
+.queue-section {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.queue-section legend {
+  padding: 0 var(--space-2);
+  font-size: var(--text-h3-size);
+  font-weight: 600;
+}
+.queue-lines {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.queue-lines legend {
+  padding: 0;
+  font-size: var(--text-label-size);
+  font-weight: 500;
+}
+.queue-lines-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.queue-lines-row label {
+  display: flex;
+  flex: 1 1 240px;
+  align-items: center;
+  gap: var(--space-2);
+}
+.queue-lines-row label input {
+  flex: 1;
+}
+.queue-rows {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.queue-row {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: minmax(140px, 200px) minmax(0, 1fr) auto;
+  align-items: start;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+@media (max-width: 700px) {
+  .queue-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.queue-row-body {
+  display: grid;
+  gap: var(--space-2);
+}
+.queue-hours-table {
+  border-collapse: collapse;
+}
+.queue-hours-table th {
+  padding: var(--space-1) var(--space-3) var(--space-1) 0;
+  font-weight: 500;
+  text-align: start;
+}
+.queue-hours-table td {
+  padding: var(--space-1) var(--space-2);
+}
+.queue-picker {
+  display: flex;
+  gap: var(--space-2);
+}
+.queue-preview pre {
+  max-height: 260px;
+  overflow: auto;
+}
+.queue-attempts {
+  display: grid;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-5);
+}
+.queue-form-actions {
+  position: sticky;
+  z-index: 2;
+  bottom: 0;
+  padding: var(--space-3) 0;
+  background: var(--surface);
+}
+.queue-tab-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-4) 0;
+}

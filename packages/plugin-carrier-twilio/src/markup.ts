@@ -73,8 +73,37 @@ export function inboundMarkup(decision: InboundDecision): string {
   }
 }
 
+/** https://www.twilio.com/docs/voice/twiml/sip (retrieved 2026-10-15): URI under 255 characters, headers under 1024. */
+const SIP_URI_MAX = 254;
+const SIP_HEADERS_MAX = 1023;
+const SIP_HEADER_COUNT_MAX = 16;
+const SIP_HEADER_NAME = /^X-[A-Za-z0-9-]{1,60}$/i;
+const SIP_HEADER_VALUE = /^[\x20-\x7e]{0,256}$/;
+
+/**
+ * `<Dial><Sip>` for a `sip` target. Only `sip:`/`sips:` URIs with no embedded headers; context
+ * rides as `X-` URI headers whose values are percent-encoded, so a value can never add a header.
+ */
+function sipDial(target: Extract<HandoffTarget, { kind: 'sip' }>): string {
+  if (!/^sips?:[^\s<>"?&#]+$/i.test(target.uri) || target.uri.length > SIP_URI_MAX)
+    throw new Error('Invalid handoff SIP URI');
+  const entries = Object.entries(target.headers ?? {});
+  if (entries.length > SIP_HEADER_COUNT_MAX) throw new Error('Too many SIP handoff headers');
+  const query = entries
+    .map(([name, value]) => {
+      if (!SIP_HEADER_NAME.test(name)) throw new Error('Invalid SIP handoff header name');
+      if (!SIP_HEADER_VALUE.test(value)) throw new Error('Invalid SIP handoff header value');
+      return `${name}=${encodeURIComponent(value).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
+    })
+    .join('&');
+  if (query.length > SIP_HEADERS_MAX) throw new Error('SIP handoff headers exceed 1023 characters');
+  return `<Response><Dial><Sip>${xml(query ? `${target.uri}?${query}` : target.uri)}</Sip></Dial></Response>`;
+}
+
 export function handoffMarkup(target: HandoffTarget): string {
   switch (target.kind) {
+    case 'sip':
+      return sipDial(target);
     case 'phone':
       if (!/^\+[1-9][0-9]{5,14}$/.test(target.e164))
         throw new Error('Invalid handoff E.164 number');

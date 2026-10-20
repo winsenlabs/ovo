@@ -3,6 +3,7 @@ import type { CarrierIngress } from '../carrier/ingress.ts';
 import type { SipRequestVerifier, SipTrunkControlClient } from '../carrier/sip-trunk.ts';
 import type { Clock } from '../clock.ts';
 import type { DecisionPort } from '../decision.ts';
+import type { MediaRoomProvider } from '../human-queue/runtime.ts';
 import type { KnowledgePort } from '../knowledge.ts';
 import type { NetPort } from '../net.ts';
 import type { BackgroundTask } from '../ops/background-task.ts';
@@ -56,6 +57,7 @@ interface TypedCapabilities {
   [Cap.routing]: RoutingHost;
   [Cap.segmentHandoff]: SegmentHandoffPort;
   [Cap.agentTransfer]: AgentTransferPort;
+  [Cap.mediaRoom]: MediaRoomProvider;
   [Cap.clock]: Clock;
   [Cap.net]: NetPort;
   [Cap.carrierControl]: CarrierControlFactory;

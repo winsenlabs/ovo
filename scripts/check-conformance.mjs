@@ -16,17 +16,11 @@ import {
   writeJson,
 } from './lib/gate-support.mjs';
 
-const KITS = new Set([
-  'describeSpeechToText',
-  'describeTextToSpeech',
-  'describeInference',
-  'describeDecision',
-  'describeKnowledge',
-  'describeCarrier',
-  'describeEngine',
-  'describeVad',
-  'describeTurnDetector',
-]);
+const KITS = new Set(
+  'describeSpeechToText describeTextToSpeech describeInference describeDecision describeKnowledge describeCarrier describeEngine describeVad describeTurnDetector describeMediaRoom'.split(
+    ' ',
+  ),
+);
 
 const args = parseArgs();
 const root = rootOf(args);

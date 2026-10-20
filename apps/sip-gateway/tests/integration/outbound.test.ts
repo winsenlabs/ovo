@@ -105,6 +105,8 @@ describe('outbound calls through the control API (§5.4)', () => {
     expect(ack.headers.get('cseq')).toBe('1 ACK');
     const start = await h.media.waitFor(() => h.media.framesIn('start')[0]);
     expect(start).toMatchObject({ callId, routeParams: { sid: 's-9', rt: 'rt-dial' } });
+    // The in_progress callback is posted in the background, so wait for it rather than race it.
+    await h.media.waitFor(() => h.media.statuses.find((s) => s.state === 'in_progress'));
     const statuses = h.media.statuses;
     expect(statuses.map((s) => [s.state, s.dialRequestId])).toEqual([
       ['ringing', body.requestId],
@@ -347,18 +349,14 @@ describe('control API guards', () => {
     expect(draining).toMatchObject({ status: 503, body: { reason: 'draining', retryable: true } });
   });
 
-  it('refuses handoff in v1', async () => {
+  it('refuses a handoff for a call it does not hold (REFER itself is covered in refer.test.ts)', async () => {
     const { h } = await setup();
     const reply = await h.control('POST', '/v1/calls/handoff', {
       carrierCallId: 'c',
       requestId: 'r',
       target: { kind: 'phone', e164: TO },
     });
-    expect(reply.body).toEqual({
-      kind: 'rejected',
-      retryable: false,
-      reason: 'handoff_unsupported',
-    });
+    expect(reply.body).toEqual({ kind: 'rejected', retryable: false, reason: 'call_not_found' });
   });
 
   it('serves /health and the token-protected verbose counters', async () => {

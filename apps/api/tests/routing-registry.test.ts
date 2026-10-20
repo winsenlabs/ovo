@@ -44,6 +44,7 @@ it('serves the routing routes dark by default (Wave 15, A1)', async () => {
       enabled: false,
       externalEnabled: false,
       transferEnabled: false,
+      humanQueueEnabled: false,
     });
     const pools = await get('/v1/routing/pools');
     expect([pools.statusCode, pools.json().error.code]).toEqual([404, 'routing_disabled']);
@@ -63,6 +64,7 @@ it('stays off without the operations database even with the flags on', async () 
       enabled: false,
       externalEnabled: true,
       transferEnabled: true,
+      humanQueueEnabled: false,
     });
     const pools = await get('/v1/routing/pools');
     expect([pools.statusCode, pools.json().error.code]).toEqual([503, 'operations_unavailable']);

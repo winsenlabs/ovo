@@ -13,6 +13,8 @@ import {
   type InferenceFactory,
   type InferenceKitOptions,
 } from './kit/inference.ts';
+import { MEDIA_ROOM_CHECKS, type MediaRoomKitOptions } from './kit/media-room.ts';
+import type { MediaRoomFactory } from './drivers/media-room-types.ts';
 import { runCheck, selectChecks, type KitCheck } from './kit/runner.ts';
 import { STT_CHECKS, type SttFactory, type SttKitOptions } from './kit/stt.ts';
 import { TTS_CHECKS, type TtsFactory, type TtsKitOptions } from './kit/tts.ts';
@@ -116,4 +118,12 @@ export function describeTurnDetector(
   options: DescribeOptions = {},
 ): void {
   describeKit('turn@1', name, TURN_CHECKS, () => ({ factory }), options.only);
+}
+
+export function describeMediaRoom(
+  name: string,
+  factory: MediaRoomFactory,
+  options: MediaRoomKitOptions & DescribeOptions = {},
+): void {
+  describeKit('media-room@1', name, MEDIA_ROOM_CHECKS, () => ({ factory, options }), options.only);
 }

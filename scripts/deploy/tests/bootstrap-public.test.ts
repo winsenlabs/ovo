@@ -102,3 +102,44 @@ it.each([
     ),
   ).toThrow(/--public-host must be a lower-case DNS name/);
 });
+
+it('adds the room server site only with --livekit-host, and points the public URL at it', () => {
+  const plain = bootstrap('--public-host', 'voice.ovo.example');
+  expect(readFileSync(plain.caddyfile, 'utf8')).not.toContain('7880');
+  expect(plain.values()).not.toContain('OVO_LIVEKIT_PUBLIC_URL');
+  const both = bootstrap(
+    '--public-host',
+    'voice.ovo.example',
+    '--livekit-host',
+    'rooms.ovo.example',
+  );
+  const proxy = readFileSync(both.caddyfile, 'utf8');
+  expect(proxy).toContain('voice.ovo.example {');
+  expect(proxy).toContain('rooms.ovo.example {\n\treverse_proxy 127.0.0.1:7880 {');
+  expect(proxy).not.toMatch(/__OVO_[A-Z_]+__/);
+  expect(both.values().match(/^OVO_LIVEKIT_PUBLIC_URL=.*$/gm)).toEqual([
+    'OVO_LIVEKIT_PUBLIC_URL=wss://rooms.ovo.example',
+  ]);
+  // Opening the site opens no room server: the flags stay as the bootstrap wrote them.
+  expect(both.values()).toContain('\nOVO_LIVEKIT_ENABLED=false\n');
+  expect(both.values()).toContain('\nOVO_LIVEKIT_PUBLIC_ENABLED=false\n');
+});
+
+it('refuses --livekit-host without --public-host, with a bad name, or the same name', () => {
+  const { run } = bootstrap();
+  const fails = (...args: string[]) => {
+    try {
+      run(...args);
+      return undefined;
+    } catch (error) {
+      return String((error as { stderr?: Buffer | string }).stderr);
+    }
+  };
+  expect(fails('--livekit-host', 'rooms.ovo.example')).toContain('needs --public-host');
+  expect(fails('--public-host', 'voice.ovo.example', '--livekit-host', 'Rooms')).toContain(
+    'lower-case DNS name',
+  );
+  expect(
+    fails('--public-host', 'voice.ovo.example', '--livekit-host', 'voice.ovo.example'),
+  ).toContain('different');
+});

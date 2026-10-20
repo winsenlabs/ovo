@@ -124,7 +124,61 @@ no query on the media URL, Call-ID and stream parameters at dial, CANCEL before 
 
 ## Not in v1
 
-SIP REFER and B2BUA transfer, SRTP/TLS (5061), PRACK/100rel, AMD, `callback-offer` and announced
+SIP transfers are no longer here: REFER and the opt-in bridge are below (Wave 17). SRTP/TLS (5061), PRACK/100rel, AMD, `callback-offer` and announced
 `wait` (no TTS in the sip-gateway), TCN REST control (requeue, transfers, dispositions) and the
 TCN Virtual Agent model. See the [TCN runbook](../runbooks/tcn-sip.md) for what TCN must answer
 first.
+
+## Transfers: REFER and the INVITE bridge (Wave 17, R3)
+
+A third-party human queue (`docs/architecture/human-queues.md`) answers with a number or a SIP URI;
+the worker hands the carrier leg to it through `TelephonyControl.handoff` with
+`{ kind: 'phone', e164 }` or `{ kind: 'sip', uri, headers? }`. Before Wave 17 the sip-gateway answered
+every handoff `handoff_unsupported`, and it still does for a trunk that does not enable REFER: **the
+trunk file is the real gate**, because whether a trunk accepts REFER is something only its operator
+knows.
+
+```jsonc
+// sip-trunks.json, one trunk
+{
+  "refer": {
+    "enabled": false, // default; absent or false keeps handoff_unsupported
+    "phoneUriTemplate": "sip:{e164}@sbc.example.net;user=phone", // {e164} once, as the user part
+    "allowedHosts": [".acd.example.com"],
+  },
+} // exact host or .suffix; toll-fraud guard for sip targets
+```
+
+```
+worker ─ POST /v1/calls/handoff { carrierCallId, requestId, target } ─▶ control API (bearer, source CIDR)
+  refer.enabled false ─▶ rejected `refer_not_enabled`
+  phone ─▶ Refer-To from phoneUriTemplate        (no template ─▶ `refer_phone_template_missing`)
+  sip   ─▶ the host must match allowedHosts      (else `refer_host_not_allowed`); headers become URI header
+           parameters, percent-encoded, `X-` names only
+gateway ─▶ in-dialog REFER (Refer-To, Referred-By: <sip:ovo@public-ip>)
+        ◀─ 202 Accepted, then NOTIFY (Event: refer, message/sipfrag) "100 Trying" … "200 OK"
+  200 sipfrag ─▶ confirmed; BYE the far end, media `stop` (reason transferred), status `completed`
+  a 3xx-6xx sipfrag, or a 4xx-6xx to the REFER ─▶ rejected (retryable only for 408 and 503)
+  no final NOTIFY within OVO_SIP_REFER_TIMEOUT_MS (15 s) after a 202 ─▶ unknown `refer_no_notify`
+```
+
+One transfer is in flight per call (`refer_in_progress`). A rejected handoff leaves the caller on the
+line and the human queue's timeout chain continues.
+
+The `stop` the gateway sends after a confirmed REFER reaches the worker as the reason `transferred`
+(`CarrierMediaEvent` stop reason `transferred`; the media layer closes the session with it, so the
+call ends `transferred` and not as a caller hang-up). The REFER can win the race with the control
+call's own answer: a human queue's segment therefore keeps its ticket while the carrier is moving
+the leg. Proved by `tests/e2e/sip-refer-path.test.ts` (SIPp as the trunk, `pnpm test:sip`).
+
+**Twilio** takes the same targets as markup: `<Dial><Number>` for a phone, `<Dial><Sip>` for a SIP
+URI (scheme `sip:`/`sips:` only, XML-escaped, header values percent-encoded, at most 16 headers).
+
+**The INVITE bridge (stretch, `OVO_SIP_BRIDGE_ENABLED`, default off).** For a trunk with
+`refer.mode: "bridge"`, the gateway dials the destination on the same trunk and relays RTP between
+the two legs instead of sending a REFER: OVO stays in the media path (and pays for two legs against
+`OVO_SIP_MAX_CALLS`) but a trunk that refuses REFER can still hand a call on. Either BYE ends both
+legs. With the flag off such a trunk refuses transfers.
+
+TCN stays disabled for transfers until its SBC is confirmed to accept REFER (every TCN trunk keeps
+`refer.enabled=false`).

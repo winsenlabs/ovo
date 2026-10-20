@@ -135,7 +135,9 @@ export class SessionBridge {
       return;
     }
     if (!this.started) throw new Error('media received before carrier start');
-    if (event.type === 'stop') return this.close('caller_hangup'); // OBS-1: the far end hung up
+    if (event.type === 'stop')
+      // OBS-1: the far end hung up; a REFER that succeeded (the sip-gateway says so) is a transfer.
+      return this.close(event.reason === 'transferred' ? 'transferred' : 'caller_hangup');
     const { message, audioBytes } = carrierMediaMessage(event, {
       lastSequence: this.lastSequence,
       maxAudioFrameBytes: this.limits.maxAudioFrameBytes,

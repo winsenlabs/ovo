@@ -19,8 +19,19 @@ const TONE_VALUES: Record<Tone, readonly string[]> = {
     'available',
     'confirmed',
     'resolved',
+    'accepted',
   ],
-  info: ['running', 'in_progress', 'dialing', 'queued', 'starting', 'scheduled', 'pending'],
+  info: [
+    'running',
+    'in_progress',
+    'dialing',
+    'queued',
+    'starting',
+    'scheduled',
+    'pending',
+    'waiting',
+    'offered',
+  ],
   warn: [
     'partial',
     'degraded',
@@ -32,6 +43,8 @@ const TONE_VALUES: Record<Tone, readonly string[]> = {
     'warn',
     'reconciling',
     'acknowledged',
+    'away',
+    'expired',
   ],
   danger: [
     'failed',
@@ -45,7 +58,17 @@ const TONE_VALUES: Record<Tone, readonly string[]> = {
     'revoked',
     'rejected',
   ],
-  neutral: ['cancelled', 'disabled', 'retired', 'not_imported', 'closed', 'draft', 'unknown'],
+  neutral: [
+    'cancelled',
+    'disabled',
+    'retired',
+    'not_imported',
+    'closed',
+    'draft',
+    'unknown',
+    'offline',
+    'released',
+  ],
 };
 
 const LOOKUP = new Map<string, Tone>();

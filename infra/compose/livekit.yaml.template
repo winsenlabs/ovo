@@ -1,0 +1,25 @@
+# The room server's configuration (docs/runbooks/livekit-deploy.md). Rendered from the Compose
+# environment by scripts/deploy/render-livekit-config.mjs into infra/compose/livekit.yaml, which is
+# git-ignored: it carries the API key pair. Do not edit the rendered file.
+port: __SIGNAL_PORT__
+# Loopback and the compose bridge until OVO_LIVEKIT_PUBLIC_ENABLED=true.
+bind_addresses:
+__BIND_ADDRESSES__
+rtc:
+  tcp_port: __TCP_PORT__
+  # One UDP port (mux) keeps the firewall rule to a single line.
+  udp_port: __UDP_PORT__
+  # Until public, the only candidate offered is the compose bridge address (workers reach it, a
+  # remote client cannot complete ICE); public, it is the static IP.
+  use_external_ip: false
+  node_ip: __NODE_IP__
+room:
+  # Rooms are made by the API at accept, never by a joining client.
+  auto_create: false
+  empty_timeout: 30
+  departure_timeout: 20
+keys:
+__KEYS__
+__TURN__
+logging:
+  level: info
