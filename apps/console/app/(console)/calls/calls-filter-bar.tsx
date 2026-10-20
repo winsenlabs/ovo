@@ -11,8 +11,22 @@ import { CALL_STATUS_KEYS } from '../../../lib/derive/calls';
 import { humaniseEnum, humaniseKey } from '../../../lib/status';
 import { KindSegmented, type CallKind } from './calls-controls';
 import type { PluginOption } from './plugin-options';
+import type { RoutingPointOption } from '../../../lib/types/call-route';
+import {
+  ROUTING_FILTERS,
+  ROUTING_FILTER_LABELS,
+  RoutingFilters,
+  type RoutingFilterAvailability,
+} from './calls-routing-filters';
 
-export const SERVER_FILTERS = ['agentId', 'kind', 'status', 'engine', 'carrier'] as const;
+export const SERVER_FILTERS = [
+  'agentId',
+  'kind',
+  'status',
+  'engine',
+  'carrier',
+  ...ROUTING_FILTERS,
+] as const;
 
 const FILTER_KEY_LABELS: Record<string, string> = {
   agentId: 'Agent',
@@ -20,7 +34,9 @@ const FILTER_KEY_LABELS: Record<string, string> = {
   status: 'Status',
   engine: 'Engine',
   carrier: 'Carrier',
+  ...ROUTING_FILTER_LABELS,
 };
+const FLAG_FILTERS: ReadonlySet<string> = new Set(['transferred', 'human', 'fallback']);
 
 /** The Calls list filter row: agent/kind/status/engine/carrier hit the API (URL-synced), search
  * and the date range are client-side over the loaded page. */
@@ -37,6 +53,7 @@ export function CallsFilterBar({
   setRange,
   custom,
   setCustom,
+  routing,
 }: {
   search: ReadonlyURLSearchParams;
   setFilter: (key: string, value: string) => void;
@@ -50,6 +67,7 @@ export function CallsFilterBar({
   setRange: (value: RangePreset) => void;
   custom: CustomRange;
   setCustom: (value: CustomRange) => void;
+  routing: { availability: RoutingFilterAvailability; points: readonly RoutingPointOption[] };
 }) {
   const activeChips = [...SERVER_FILTERS, 'q'].filter((key) =>
     key === 'q' ? queryText : search.get(key),
@@ -64,6 +82,10 @@ export function CallsFilterBar({
         return engines.find((option) => option.id === value)?.label ?? value;
       case 'carrier':
         return carriers.find((option) => option.id === value)?.label ?? value;
+      case 'routingPointId':
+        return routing.points.find((point) => point.id === value)?.name ?? value;
+      case 'segmentAgentId':
+        return agents.get(value) ?? value;
       default:
         return humaniseEnum(value);
     }
@@ -78,7 +100,9 @@ export function CallsFilterBar({
         label:
           key === 'q'
             ? `ID: ${queryText}`
-            : `${FILTER_KEY_LABELS[key] ?? humaniseKey(key)}: ${chipValueLabel(key, search.get(key)!)}`,
+            : FLAG_FILTERS.has(key)
+              ? (FILTER_KEY_LABELS[key] ?? humaniseKey(key))
+              : `${FILTER_KEY_LABELS[key] ?? humaniseKey(key)}: ${chipValueLabel(key, search.get(key)!)}`,
       }))}
       onClearChip={(id) => (id === 'q' ? setQueryText('') : setFilter(id, ''))}
       onClearAll={() => {
@@ -118,6 +142,13 @@ export function CallsFilterBar({
             onChange={(value) => setFilter('carrier', value)}
             placeholder="All carriers"
             options={carriers.map((option) => ({ value: option.id, label: option.label }))}
+          />
+          <RoutingFilters
+            search={search}
+            setFilter={setFilter}
+            availability={routing.availability}
+            points={routing.points}
+            agents={agents}
           />
           <DateRangePicker
             value={range}

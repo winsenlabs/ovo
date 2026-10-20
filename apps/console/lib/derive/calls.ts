@@ -188,3 +188,41 @@ export function tierShares(tiers: CallOutcomeSummary['tiers'] | undefined): {
     .filter(([, count]) => (count ?? 0) > 0)
     .map(([key, count]) => ({ key, count: count ?? 0 }));
 }
+
+/** What the Calls list shows of a routed call, read off its recorded outcome. */
+export interface CallRouteSummary {
+  pointId: string;
+  target: string;
+  agentReleaseId: string | null;
+  segments: number;
+  transferred: boolean;
+  person: boolean;
+  usedFallback: boolean;
+}
+
+/** Null for a direct call, and for an outcome recorded before routing existed. */
+export function callRouteSummary(
+  outcome: CallOutcomeSummary | null | undefined,
+): CallRouteSummary | null {
+  const route = outcome?.route;
+  if (!route) return null;
+  const extras = route as { fallbacks?: number };
+  return {
+    pointId: route.routingPointId,
+    target: route.target,
+    agentReleaseId: route.releaseId ?? null,
+    segments: Math.max(route.segments ?? 0, outcome?.segments?.length ?? 0),
+    transferred: (outcome?.transfers?.connected ?? 0) > 0,
+    person: outcome?.human != null,
+    usedFallback: (extras.fallbacks ?? 0) > 0 || route.degraded != null,
+  };
+}
+
+/**
+ * True when the API says it could not apply the routing filters (no outcome store). The cursor
+ * hook spreads the whole response page, so the flag is on the object even though its type
+ * only names `items` and `nextCursor`.
+ */
+export function routingFilterUnavailable(page: object): boolean {
+  return (page as { filterUnavailable?: unknown }).filterUnavailable === true;
+}

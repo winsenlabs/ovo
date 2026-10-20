@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  callRouteSummary,
   callDurationMs,
   callsKpis,
   callsOverTime,
   endReasonLabel,
   endReasonTop,
+  routingFilterUnavailable,
   type CallRow,
 } from './calls';
 
@@ -124,5 +126,69 @@ describe('endReasonLabel / endReasonTop', () => {
       { label: 'Caller hung up', count: 2 },
       { label: 'Max duration', count: 1 },
     ]);
+  });
+});
+
+describe('routing facts on a call row (Wave 18)', () => {
+  const route = {
+    routingPointId: 'point-1',
+    routingReleaseId: 'rel-1',
+    path: ['intent'],
+    target: 'agent' as const,
+    agentId: 'agent-sales',
+    releaseId: 'rel-sales',
+    poolId: null,
+    memberId: null,
+    language: 'hi',
+    degraded: null,
+    segments: 2,
+  };
+  const base = {
+    callId: 'c',
+    transfers: { requested: 0, refused: 0, connected: 0, failed: 0 },
+    human: null,
+    segments: [],
+  };
+  const summary = (patch: object) => callRouteSummary({ ...base, route, ...patch } as never);
+
+  it('is null for a direct call, a call with no outcome and a pre-routing outcome', () => {
+    expect(callRouteSummary(null)).toBeNull();
+    expect(callRouteSummary(undefined)).toBeNull();
+    expect(callRouteSummary({ ...base, route: null } as never)).toBeNull();
+    expect(callRouteSummary({ tiers: {} } as never)).toBeNull();
+  });
+
+  it.each([
+    [
+      'a plain routed call',
+      {},
+      { segments: 2, transferred: false, person: false, usedFallback: false },
+    ],
+    [
+      'a connected transfer',
+      { transfers: { requested: 1, refused: 0, connected: 1, failed: 0 } },
+      { transferred: true },
+    ],
+    [
+      'a refused transfer only',
+      { transfers: { requested: 1, refused: 1, connected: 0, failed: 0 } },
+      { transferred: false },
+    ],
+    ['a person', { human: { queueKey: 'desk' } }, { person: true }],
+    [
+      'a degraded route',
+      { route: { ...route, degraded: 'router_compose_failed' } },
+      { usedFallback: true },
+    ],
+    ['a recorded fallback', { route: { ...route, fallbacks: 2 } }, { usedFallback: true }],
+    ['more segments than the route counted', { segments: [{}, {}, {}] }, { segments: 3 }],
+  ])('summarises %s', (_name, patch, expected) => {
+    expect(summary(patch)).toMatchObject({ pointId: 'point-1', target: 'agent', ...expected });
+  });
+
+  it('reads filterUnavailable off the page the cursor hook spread', () => {
+    expect(routingFilterUnavailable({ items: [], filterUnavailable: true })).toBe(true);
+    expect(routingFilterUnavailable({ items: [], filterUnavailable: false })).toBe(false);
+    expect(routingFilterUnavailable({ items: [] })).toBe(false);
   });
 });
