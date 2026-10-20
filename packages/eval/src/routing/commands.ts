@@ -9,9 +9,12 @@ import {
   ROUTING_SCORECARD_SCHEMA,
   type RoutingScorecard,
   type RoutingThresholds,
+  type ScoreInput,
 } from '@winsendotai/ovo-plugin-router';
 import { loadCorpus, scoreSetup } from './corpus.ts';
+import { liveSetup, type InferenceFactory } from './live.ts';
 import { markdownReport } from './report.ts';
+import { routingHtmlReport } from './report-html.ts';
 import { workedExampleSnapshot } from './worked-example.ts';
 
 const PACKAGE = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -20,7 +23,7 @@ const log = (line: string) => process.stderr.write(`${line}\n`);
 
 const USAGE = `pnpm eval:routing [run] [--corpus dir] [--label name] [--out dir]
      [--baseline scorecard.json [--thresholds file]] [--save-baseline file]
-     [--assume-transfer] [--assume-human]
+     [--live llm --llm-model id --keys file] [--assume-transfer] [--assume-human]
 pnpm eval:routing diff <baseline.json> <candidate.json> [--thresholds file] [--out dir]
 pnpm eval:routing snapshot [--corpus dir] [--write]
 Exits 1 when the gate fails, 2 on a usage or run error.`;
@@ -69,6 +72,7 @@ function parse(args: string[]) {
       'save-baseline': { type: 'string' },
       live: { type: 'string' },
       keys: { type: 'string' },
+      'llm-model': { type: 'string' },
       'assume-transfer': { type: 'boolean' },
       'assume-human': { type: 'boolean' },
       write: { type: 'boolean' },
@@ -77,20 +81,39 @@ function parse(args: string[]) {
   });
 }
 
-async function run(values: Values): Promise<number> {
-  if (values.live !== undefined) {
-    log(
-      '--live needs engine credentials and is not available in this build (see docs/eval/routing.md).',
-    );
+/** What a run can be given besides its arguments: tests supply a fake inference instead of OpenAI. */
+export interface Deps {
+  inference?: InferenceFactory;
+}
+
+async function run(values: Values, deps: Deps): Promise<number> {
+  if (values.live !== undefined && values['save-baseline']) {
+    log('--save-baseline needs a deterministic run: it cannot be combined with --live.');
     return 2;
   }
+  const live =
+    values.live === undefined
+      ? undefined
+      : await liveSetup(
+          { live: values.live, keys: values.keys, model: values['llm-model'] },
+          deps.inference,
+        );
+  try {
+    return await score(values, live?.live);
+  } finally {
+    await live?.close();
+  }
+}
+
+async function score(values: Values, live: ScoreInput['live']): Promise<number> {
   const corpus = await loadCorpus(values.corpus ?? DEFAULT_CORPUS);
-  const label = values.label ?? `routing-${corpus.manifest.name}`;
+  const label = values.label ?? `routing-${corpus.manifest.name}${live ? '-live' : ''}`;
   const card = await scoreRoutingCorpus({
     snapshot: corpus.snapshot,
     cases: corpus.cases,
     name: corpus.manifest.name,
-    engineMode: 'recorded',
+    engineMode: live ? 'live' : 'recorded',
+    ...(live ? { live } : {}),
     ...scoreSetup(corpus, { transfer: values['assume-transfer'], human: values['assume-human'] }),
   });
   const baseline = values.baseline ? await readCard(values.baseline) : undefined;
@@ -107,7 +130,8 @@ async function run(values: Values): Promise<number> {
   };
   await writeJson(join(out, `${label}.json`), file);
   await writeFile(join(out, `${label}.md`), markdownReport(card, label, gate));
-  log(`wrote ${relative(process.cwd(), join(out, label)) || label}.{json,md}`);
+  await writeFile(join(out, `${label}.html`), routingHtmlReport(card, label, gate));
+  log(`wrote ${relative(process.cwd(), join(out, label)) || label}.{json,md,html}`);
   log(
     `cases=${card.totals.cases} passed=${card.totals.passed} accuracy=${card.accuracy.overall.rate === null ? 'n/a' : card.accuracy.overall.rate.toFixed(3)} ` +
       `fallback=${card.fallbackRate.rate?.toFixed(3)} clarify=${card.clarifyRate.rate?.toFixed(3)} end=${card.endRate.rate?.toFixed(3)}`,
@@ -140,6 +164,10 @@ async function diff(files: string[], values: Values): Promise<number> {
   if (values.out) {
     await mkdir(resolve(values.out), { recursive: true });
     await writeFile(join(resolve(values.out), 'routing-diff.md'), report);
+    await writeFile(
+      join(resolve(values.out), 'routing-diff.html'),
+      routingHtmlReport(candidate, candidate.label ?? 'candidate', gate),
+    );
   }
   process.stdout.write(
     `${gate.ok ? 'gate passed' : 'gate FAILED'}\n${gate.failures.map((f) => `  ${f}`).join('\n')}\n`,
@@ -156,7 +184,7 @@ async function snapshot(values: Values): Promise<number> {
   return 0;
 }
 
-export async function main(args: string[]): Promise<number> {
+export async function main(args: string[], deps: Deps = {}): Promise<number> {
   let parsed: ReturnType<typeof parse>;
   try {
     parsed = parse(args);
@@ -166,7 +194,7 @@ export async function main(args: string[]): Promise<number> {
   }
   const [command = 'run', ...rest] = parsed.positionals;
   if (parsed.values.help) return (log(USAGE), 0);
-  if (command === 'run') return run(parsed.values);
+  if (command === 'run') return run(parsed.values, deps);
   if (command === 'diff') return diff(rest, parsed.values);
   if (command === 'snapshot') return snapshot(parsed.values);
   log(`unknown command ${command}\n${USAGE}`);

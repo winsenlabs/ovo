@@ -46,13 +46,24 @@ pnpm eval:routing --corpus <dir> --label mine --out /tmp/routing
 pnpm eval:routing --save-baseline packages/eval/baselines/routing-worked-example.json
 pnpm eval:routing diff <baseline.json> <candidate.json> [--thresholds file]
 pnpm eval:routing snapshot --write                 # regenerate the worked example's snapshot.json
+pnpm eval:routing --live llm --llm-model <id> --keys ~/.ovo-eval/keys.env   # the classifier for real
 ```
 
 (`pnpm eval:routing` is `tsx packages/eval/src/routing/cli.ts`.) Each run writes `<label>.json`
-(the scorecard, plus `label`, `generatedAt` and the commit) and `<label>.md` to `--out` (default
-`packages/eval/out/`, not committed). Exit codes: 0, 1 when the gate fails, 2 on a usage or run
-error. `--assume-transfer` and `--assume-human` force those switches on whatever the corpus says.
-`--live` is reserved for a run against real engines and exits 2 in this build.
+(the scorecard, plus `label`, `generatedAt` and the commit), `<label>.md` and `<label>.html` (one
+self-contained page: headline numbers, the gate's verdict, shaded confusion matrices) to `--out`
+(default `packages/eval/out/`, not committed). Exit codes: 0, 1 when the gate fails, 2 on a usage
+or run error. `--assume-transfer` and `--assume-human` force those switches on whatever the corpus
+says.
+
+**`--live llm`** runs the LLM classifier against a real model instead of the scripted answers
+(OpenAI Responses; the key is `OPENAI_API_KEY` in the `--keys` file or `OVO_EVAL_OPENAI_API_KEY`).
+The scorecard is labelled `engineMode: live`, so it measures the model as well as the tree; it costs
+money, varies run to run, takes at most 8 caller turns a case (longer cases fail with
+`run: live_turns_exceeded`), and cannot be saved as a baseline. Decision and external engines
+cannot be run from the CLI (they need the release's own decision service and webhook secrets); the
+API's simulator runs them live behind its own flags. The CLI path is unit-tested with a fake model
+and has not been run against the real provider in CI, which holds no keys.
 
 ## The corpus
 

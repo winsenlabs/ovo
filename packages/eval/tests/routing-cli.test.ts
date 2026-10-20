@@ -53,6 +53,11 @@ describe('pnpm eval:routing run', () => {
       totals: { cases: 45, passed: 45 },
     });
     expect(card.generatedAt).toMatch(/^\d{4}-/);
+    const html = readFileSync(join(out('run'), 'ci.html'), 'utf8');
+    expect(html).toMatch(/^<!doctype html>/);
+    expect(html).toContain('Routing eval: ci');
+    expect(html).toContain('Confusion: rules (19/19 as expected)');
+    expect(html).not.toContain('<script');
     expect(readFileSync(join(out('run'), 'ci.md'), 'utf8')).toMatch(
       /^# Routing eval: ci\n[\s\S]*\*\*45 of 45 cases pass\.\*\*/,
     );
@@ -168,11 +173,95 @@ describe('pnpm eval:routing snapshot and usage', () => {
     expect(JSON.parse(readFileSync(join(dir, 'snapshot.json'), 'utf8')).schemaVersion).toBe(3);
   });
 
-  it('exits 2 on a usage error and on --live, which needs credentials', async () => {
+  it('exits 2 on a usage error', async () => {
     expect(await main(['bogus'])).toBe(2);
     expect(await main(['--nope'])).toBe(2);
-    expect(await main(['--live', 'llm'])).toBe(2);
     expect(await main(['--help'])).toBe(0);
     expect(stderr.join('')).toContain('pnpm eval:routing');
+  });
+});
+
+describe('the HTML scorecard', () => {
+  it('shows a failing gate and a failing case, with the caller text escaped away', async () => {
+    const dir = broken('sales-keypad-1', { status: 'agent', member: 'sales-hi' });
+    expect(
+      await main(['--corpus', dir, '--out', out('html'), '--baseline', BASELINE, '--label', 'h']),
+    ).toBe(1);
+    const html = readFileSync(join(out('html'), 'h.html'), 'utf8');
+    expect(html).toContain('Gate: FAIL');
+    expect(html).toContain('member: expected &#34;sales-hi&#34;, got &#34;sales-en&#34;');
+    expect(html).toMatch(/background:rgba\(var\(--heat\),0\.\d+\)/);
+    expect(html).not.toContain('mujhe');
+  });
+});
+
+describe('pnpm eval:routing --live llm', () => {
+  const keys = () => {
+    const file = out('keys.env');
+    writeFileSync(file, 'OPENAI_API_KEY=sk-test-not-a-real-key\n');
+    return file;
+  };
+  /** An inference that never classifies anything, and records how it was built. */
+  const built: { key: string; model: string; closed: boolean }[] = [];
+  const unsure = (key: string, model: string) => {
+    const record = { key, model, closed: false };
+    built.push(record);
+    return {
+      model,
+      generate: async () => ({
+        kind: 'tool' as const,
+        toolId: 'ovo_route',
+        input: { branch: null, confidence: 0 },
+      }),
+      close: async () => void (record.closed = true),
+    };
+  };
+
+  it('runs the classifier for real, labels the scorecard live and closes the model', async () => {
+    const code = await main(
+      ['--live', 'llm', '--llm-model', 'fake-model', '--keys', keys(), '--out', out('live')],
+      { inference: unsure },
+    );
+    expect(code).toBe(0);
+    expect(built).toEqual([{ key: 'sk-test-not-a-real-key', model: 'fake-model', closed: true }]);
+    const card = JSON.parse(
+      readFileSync(join(out('live'), 'routing-worked-example-live.json'), 'utf8'),
+    );
+    expect(card.engineMode).toBe('live');
+    expect(card.totals.failed).toBeGreaterThan(0);
+    expect(card.perEngine.llm.attempts).toBeGreaterThan(0);
+    expect(stderr.join('')).toContain('FAIL');
+    expect(readFileSync(join(out('live'), 'routing-worked-example-live.md'), 'utf8')).toContain(
+      'engines live',
+    );
+  });
+
+  it.each([
+    [
+      'an engine the CLI cannot run live',
+      ['--live', 'llm,external', '--llm-model', 'm'],
+      'only llm can run live',
+    ],
+    ['no model', ['--live', 'llm'], '--live llm needs --llm-model'],
+  ])('refuses %s', async (_name, args, message) => {
+    await expect(
+      main([...args, '--keys', keys(), '--out', out('refused')], { inference: unsure }),
+    ).rejects.toThrow(message);
+  });
+
+  it('refuses a run with no key, and a live baseline', async () => {
+    const empty = out('no-key.env');
+    writeFileSync(empty, '\n');
+    await expect(
+      main(['--live', 'llm', '--llm-model', 'm', '--keys', empty, '--out', out('nokey')], {
+        inference: unsure,
+      }),
+    ).rejects.toThrow('needs OPENAI_API_KEY');
+    expect(
+      await main(
+        ['--live', 'llm', '--llm-model', 'm', '--keys', keys(), '--save-baseline', out('b.json')],
+        { inference: unsure },
+      ),
+    ).toBe(2);
   });
 });
