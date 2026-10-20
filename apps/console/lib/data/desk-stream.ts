@@ -29,10 +29,8 @@ export function parseDeskEvent(name: string, data: string): DeskStreamEvent | un
     const value = JSON.parse(data) as Record<string, unknown>;
     if (name === 'ticket' && typeof value.id === 'string')
       return { type: 'ticket', ticket: value as unknown as HumanTicketView };
-    if (name === 'removed' && typeof value.id === 'string')
-      return { type: 'removed', id: value.id };
-    if (name === 'me')
-      return { type: 'me', me: value as Partial<Pick<DeskMe, 'status' | 'stats'>> };
+    if (name === 'removed' && typeof value.id === 'string') return { type: 'removed', id: value.id };
+    if (name === 'me') return { type: 'me', me: value as Partial<Pick<DeskMe, 'status' | 'stats'>> };
   } catch {
     // A malformed frame must not take the stream down.
   }

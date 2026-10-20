@@ -48,15 +48,9 @@ describe('queuesApi', () => {
   it('previews and tests on the paths the API serves', async () => {
     await queuesApi.preview({ body: {} }, { callerId: false });
     expect(lastCall()[0]).toBe('/human-queues/preview');
-    expect(JSON.parse(lastCall()[1]!.body as string)).toEqual({
-      spec: { body: {} },
-      policy: { callerId: false },
-    });
+    expect(JSON.parse(lastCall()[1]!.body as string)).toEqual({ spec: { body: {} }, policy: { callerId: false } });
     await queuesApi.testWebhook('q9');
-    expect([lastCall()[0], lastCall()[1]?.method]).toEqual([
-      '/human-queues/q9/test-webhook',
-      'POST',
-    ]);
+    expect([lastCall()[0], lastCall()[1]?.method]).toEqual(['/human-queues/q9/test-webhook', 'POST']);
   });
 
   it('writes only the profile fields of an operator, never presence or directory details', async () => {
@@ -88,23 +82,14 @@ describe('queuesApi', () => {
 describe('deskApi', () => {
   it('calls the desk paths with the methods and bodies the API expects', async () => {
     await deskApi.setPresence('AWAY');
-    expect(lastCall()).toEqual([
-      '/desk/presence',
-      expect.objectContaining({ method: 'PUT', body: '{"status":"AWAY"}' }),
-    ]);
+    expect(lastCall()).toEqual(['/desk/presence', expect.objectContaining({ method: 'PUT', body: '{"status":"AWAY"}' })]);
     await deskApi.accept('t 1', 4, 'key-1');
     expect(lastCall()[0]).toBe('/desk/tickets/t%201/accept');
-    expect(JSON.parse(lastCall()[1]!.body as string)).toEqual({
-      expectedVersion: 4,
-      idempotencyKey: 'key-1',
-    });
+    expect(JSON.parse(lastCall()[1]!.body as string)).toEqual({ expectedVersion: 4, idempotencyKey: 'key-1' });
     await deskApi.decline('t1', 4);
     expect(JSON.parse(lastCall()[1]!.body as string)).toEqual({ expectedVersion: 4 });
     await deskApi.command('t1', { kind: 'return_to_agent', target: 'bot' });
-    expect(JSON.parse(lastCall()[1]!.body as string)).toEqual({
-      kind: 'return_to_agent',
-      target: 'bot',
-    });
+    expect(JSON.parse(lastCall()[1]!.body as string)).toEqual({ kind: 'return_to_agent', target: 'bot' });
     await deskApi.wrapUp('t1', { disposition: 'Resolved' });
     expect([lastCall()[0], lastCall()[1]?.method]).toEqual(['/desk/tickets/t1/wrap-up', 'PUT']);
     await deskApi.heartbeat();

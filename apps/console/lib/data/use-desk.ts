@@ -8,7 +8,12 @@ import {
   type DeskState,
   type DeskTicket,
 } from '../derive/desk';
-import type { DeskAcceptResult, DeskMe, HumanTicketView, OperatorStatus } from '../types/desk';
+import type {
+  DeskAcceptResult,
+  DeskMe,
+  HumanTicketView,
+  OperatorStatus,
+} from '../types/desk';
 import { deskApi } from './desk-api';
 import { openDeskStream, type DeskStreamStatus } from './desk-stream';
 
@@ -60,7 +65,7 @@ export function useDesk() {
         loadTickets(),
         deskApi.roomStatus().catch(() => undefined),
       ]);
-      setRoomReachable(room ? room.managedAvailable && room.room.reachable !== false : undefined);
+      setRoomReachable(room ? (room.managedAvailable && room.room.reachable !== false) : undefined);
       setError(undefined);
       setPhase('ready');
     } catch (failure) {
@@ -129,22 +134,15 @@ export function useDesk() {
   const setStatus = useCallback(
     async (next: OperatorStatus) => {
       const previous = state.me?.status;
-      setState((current) =>
-        current.me ? { ...current, me: { ...current.me, status: next } } : current,
-      );
+      setState((current) => (current.me ? { ...current, me: { ...current.me, status: next } } : current));
       try {
         await deskApi.setPresence(next);
         return true;
       } catch (failure) {
         setState((current) =>
-          current.me && previous
-            ? { ...current, me: { ...current.me, status: previous } }
-            : current,
+          current.me && previous ? { ...current, me: { ...current.me, status: previous } } : current,
         );
-        setNotice({
-          tone: 'danger',
-          text: failureMessage(failure, 'Presence could not be changed.'),
-        });
+        setNotice({ tone: 'danger', text: failureMessage(failure, 'Presence could not be changed.') });
         return false;
       }
     },
@@ -173,10 +171,7 @@ export function useDesk() {
             return { kind: 'room_unavailable' };
           }
         }
-        return {
-          kind: 'error',
-          message: failureMessage(failure, 'The call could not be accepted.'),
-        };
+        return { kind: 'error', message: failureMessage(failure, 'The call could not be accepted.') };
       }
     },
     [loadTickets],
@@ -186,9 +181,7 @@ export function useDesk() {
     async (ticket: HumanTicketView) => {
       try {
         await deskApi.decline(ticket.id, ticket.version);
-        setState((current) =>
-          applyDeskEvent(current, { type: 'removed', id: ticket.id }, Date.now()),
-        );
+        setState((current) => applyDeskEvent(current, { type: 'removed', id: ticket.id }, Date.now()));
       } catch (failure) {
         if (failure instanceof ApiError && failure.code === 'conflict') {
           setNotice({ tone: 'warn', text: 'That call changed before you could decline it.' });
